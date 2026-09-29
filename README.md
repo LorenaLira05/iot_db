@@ -24,18 +24,22 @@ Fornecer uma base de dados consistente e segura para:
 
 ---
 
-## Estrutura de Arquivos SQL
+## 📂 Estrutura e Ordem de Execução dos Arquivos SQL
 
-O repositório está organizado na seguinte ordem de execução recomendada:
+Para a correta criação e inicialização do banco de dados, execute os arquivos na seguinte sequência obrigatória:
 
-| Arquivo | Descrição |
-| :--- | :--- |
-| `schema.sql` | Criação dos tipos enumerados (`ENUM`) e tabelas principais do sistema. |
-| `restricoes.sql` | Aplicação de chaves únicas (`UNIQUE`), validações de `NOT NULL` e índices de deduplicação. |
-| `seed.sql` | Carga inicial de perfis, frutas, faixas ideais recomendadas (UC Davis / Embrapa) e vínculo com sensores físicos. |
-| `triggers.sql` | Implementação de regras de negócio automatizadas (ex: alertas de variação climática e proteção contra exclusão física de usuários). |
-| `views.sql` | Visões materializadas/consultas prontas para consumo por dashboards e módulos analíticos. |
+1. **`schema.sql`**
+   Criação dos tipos enumerados (`ENUM`) e estrutura básica de todas as tabelas do sistema[.
+2. **`restricoes.sql`**
+   Aplicação de restrições de integridade (`NOT NULL`, `UNIQUE`), chaves únicas e índices de deduplicação da ingestão.
+3. **`seed.sql`**
+   Carga inicial de dados necessários (perfis de acesso, frutas, faixas ideais de temperatura/umidade e vinculação do sensor físico).
+4. **`triggers.sql`**
+   Criação das funções e gatilhos para automação de regras de negócio (alertas automáticos por variação climática e prevenção contra exclusão física de usuários).
+5. **`views.sql`**
+   Criação de visões otimizadas para consulta e alimentação dos painéis de dashboard e análises agregadas diárias.
 
+---
 ---
 
 ##  Principais Entidades
