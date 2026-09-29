@@ -109,15 +109,20 @@ CREATE TABLE leitura_climatica (
     data_hora TIMESTAMP,
     data_recebimento TIMESTAMP,
     origem VARCHAR(150),
+    entry_id_thingspeak INTEGER,
     fk_sensor_id_sensor INTEGER,
 
     CONSTRAINT fk_leitura_climatica_sensor
         FOREIGN KEY (fk_sensor_id_sensor)
         REFERENCES sensor (id_sensor)
-        ON DELETE RESTRICT
-);
-CREATE INDEX idx_leitura_sensor_data ON leitura_climatica (fk_sensor_id_sensor, data_hora);
+        ON DELETE RESTRICT,
 
+    CONSTRAINT uq_leitura_sensor_entry
+        UNIQUE (fk_sensor_id_sensor, entry_id_thingspeak)
+);
+
+CREATE INDEX idx_leitura_sensor_data
+    ON leitura_climatica (fk_sensor_id_sensor, data_hora);
 
 /* =========================
    CONFIG PARAMETRO
@@ -280,10 +285,3 @@ CREATE TABLE relatorio (
         REFERENCES usuario (id_usuario)
         ON DELETE RESTRICT
 );
-
-ALTER TABLE leitura_climatica
-  ADD COLUMN entry_id_thingspeak INTEGER;
-
-ALTER TABLE leitura_climatica
-  ADD CONSTRAINT uq_leitura_sensor_entry
-  UNIQUE (fk_sensor_id_sensor, entry_id_thingspeak);
