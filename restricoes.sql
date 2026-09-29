@@ -1,12 +1,14 @@
 -- restricoes.sql
 -- Restrições que faltavam no schema. Pode rodar mais de uma vez.
--- Ordem sugerida: schema -> restricoes.sql -> seed.sql
--- Se algum passo falhar por dados existentes que violam a regra, corrija os
--- dados e rode de novo (a transação desfaz tudo).
+-- Ordem: schema -> restricoes.sql -> seed.sql
+-- Se algum passo falhar por dados que violam a regra, a transação desfaz tudo:
+-- corrija os dados, rode ROLLBACK; e execute de novo.
 
 BEGIN;
 
+-- ============================================================
 -- leitura_climatica: deduplicação da ingestão do ThingSpeak
+-- ============================================================
 ALTER TABLE leitura_climatica
     ADD COLUMN IF NOT EXISTS entry_id_thingspeak INTEGER;
 
@@ -21,7 +23,9 @@ BEGIN
     END IF;
 END $$;
 
+-- ============================================================
 -- usuario: e-mail único (sem diferenciar maiúsculas) e campos obrigatórios
+-- ============================================================
 CREATE UNIQUE INDEX IF NOT EXISTS uq_usuario_email_lower
     ON usuario (lower(email));
 
@@ -31,9 +35,10 @@ ALTER TABLE usuario ALTER COLUMN senha               SET NOT NULL;
 ALTER TABLE usuario ALTER COLUMN status              SET NOT NULL;
 ALTER TABLE usuario ALTER COLUMN fk_perfil_id_perfil SET NOT NULL;
 
--- perfil, fruta, sensor: chaves naturais únicas
--- (o seed.sql depende disso para não duplicar)
-
+-- ============================================================
+-- perfil, fruta, config_parametro, sensor: chaves naturais únicas
+-- (o seed.sql e o trigger de alerta dependem disso)
+-- ============================================================
 DO $$
 BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_perfil_nome') THEN
@@ -44,9 +49,10 @@ BEGIN
         ALTER TABLE fruta ADD CONSTRAINT uq_fruta_nome UNIQUE (nome);
     END IF;
 
-    -- uma faixa ideal por fruta (o trigger de alerta e o seed dependem disso)
+    -- uma faixa ideal por fruta
     IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_config_fruta') THEN
-        ALTER TABLE config_parametro ADD CONSTRAINT uq_config_fruta UNIQUE (fk_fruta_id_fruta);
+        ALTER TABLE config_parametro
+            ADD CONSTRAINT uq_config_fruta UNIQUE (fk_fruta_id_fruta);
     END IF;
 
     -- channel_id NULL pode repetir (sensores simulados); só o valor preenchido é único
@@ -55,12 +61,14 @@ BEGIN
     END IF;
 END $$;
 
--- Opcionais (descomente quando fizer sentido)
-
--- Depois de ligar todas as leituras a um sensor:
--- ALTER TABLE leitura_climatica ALTER COLUMN fk_sensor_id_sensor SET NOT NULL;
+-- ============================================================
+-- Opcional (descomente quando fizer sentido)
+-- ============================================================
 
 -- log_acesso.ip é INTEGER e não guarda IPs como 192.168.0.1. Antes de usar o log:
 -- ALTER TABLE log_acesso ALTER COLUMN ip TYPE INET USING NULL;
 
 COMMIT;
+
+-- Obs.: fk_sensor_id_sensor NOT NULL em leitura_climatica é aplicado no fim do
+-- seed.sql, depois que o sensor existe e as leituras antigas foram ligadas a ele.
