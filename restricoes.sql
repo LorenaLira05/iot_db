@@ -54,11 +54,4 @@ BEGIN
     END IF;
 END $$;
 
-
--- Depois de ligar todas as leituras a um sensor:
-ALTER TABLE leitura_climatica ALTER COLUMN fk_sensor_id_sensor SET NOT NULL;
-
--- log_acesso.ip é INTEGER e não guarda IPs como 192.168.0.1. Antes de usar o log:
-ALTER TABLE log_acesso ALTER COLUMN ip TYPE INET USING NULL;
-
 COMMIT;
