@@ -1,8 +1,8 @@
-# Banco de Dados — ValeSafra
+# Banco de Dados ValeSafra
 
 Banco de dados desenvolvido para o projeto **ValeSafra**, voltado ao monitoramento climático, acompanhamento de lotes, previsões, alertas e dados relacionados à produção agrícola.
 
-## 🚧 Status do projeto
+## Status do projeto
 
 > **Em desenvolvimento**
 
@@ -10,7 +10,7 @@ Este banco de dados **ainda está em fase de desenvolvimento e modelagem**. A es
 
 As tabelas, relacionamentos, tipos de dados e regras de negócio podem sofrer alterações durante o desenvolvimento da aplicação e a integração com os demais componentes do sistema.
 
-## 📌 Objetivo
+## Objetivo
 
 A estrutura tem como objetivo fornecer uma base para armazenar e relacionar informações como:
 
@@ -26,7 +26,7 @@ A estrutura tem como objetivo fornecer uma base para armazenar e relacionar info
 * Registros de acesso;
 * Relatórios.
 
-## 🗂️ Principais entidades
+## Principais entidades
 
 | Tabela               | Descrição                                     |
 | -------------------- | --------------------------------------------- |
@@ -45,7 +45,7 @@ A estrutura tem como objetivo fornecer uma base para armazenar e relacionar info
 | `log_acesso`         | Registro das ações dos usuários               |
 | `relatorio`          | Relatórios gerados pelo sistema               |
 
-## 🔗 Integração
+## Integração
 
 O banco faz parte de uma arquitetura maior do projeto, que poderá envolver:
 
@@ -53,7 +53,7 @@ O banco faz parte de uma arquitetura maior do projeto, que poderá envolver:
 
 A estrutura atual serve como uma das bases para essa integração e poderá ser adaptada conforme os requisitos das outras partes do sistema.
 
-## ⚠️ Observação
+## Observação
 
 Este repositório apresenta uma **versão de desenvolvimento** do banco de dados.
 
@@ -67,12 +67,12 @@ Portanto:
 
 A **versão geral/final** será definida após a conclusão da modelagem e integração com os demais módulos do projeto.
 
-## 🛠️ Tecnologias
+## Tecnologias
 
 * PostgreSQL
 * SQL
 * Banco de dados relacional
 
-## 📅 Desenvolvimento
+## Desenvolvimento
 
 Projeto acadêmico desenvolvido como parte do projeto **ValeSafra**.
