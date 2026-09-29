@@ -1,71 +1,78 @@
 # Banco de Dados ValeSafra
 
-Banco de dados desenvolvido para o projeto **ValeSafra**, voltado ao monitoramento climático, acompanhamento de lotes, previsões, alertas e dados relacionados à produção agrícola.
+Banco de dados relacional (PostgreSQL) desenvolvido para o projeto **ValeSafra**, focado no monitoramento climático em tempo real, acompanhamento de lotes agrícolas, automação de alertas de contorno de faixa ideal e suporte a análises e previsões de mercado e colheita[cite: 1, 3, 5].
+
+---
 
 ## Status do projeto
 
-> **Em desenvolvimento**
+> **Em desenvolvimento**[cite: 1]
 
-Este banco de dados **ainda está em fase de desenvolvimento e modelagem**. A estrutura apresentada neste repositório **não corresponde à versão final ou geral do banco de dados do projeto**.
+A estrutura do banco de dados foi expandida com **restrições de integridade**, **índices de desempenho**, **gatilhos (triggers) para automação de alertas** e **views otimizadas** para dashboards e relatórios analíticos[cite: 2, 3, 5, 6].
 
-As tabelas, relacionamentos, tipos de dados e regras de negócio podem sofrer alterações durante o desenvolvimento da aplicação e a integração com os demais componentes do sistema.
+---
 
 ## Objetivo
 
-A estrutura tem como objetivo fornecer uma base para armazenar e relacionar informações como:
+Fornecer uma base de dados consistente e segura para:
 
-* Usuários e seus perfis;
-* Frutas e lotes de produção;
-* Sensores e suas localizações;
-* Leituras de temperatura e umidade;
-* Parâmetros climáticos por fruta;
-* Dados de mercado;
-* Previsões;
-* Previsões climáticas e de mercado;
-* Alertas;
-* Registros de acesso;
-* Relatórios.
+* **Gestão de Acesso (RBAC):** Autenticação de usuários, perfis (`Produtor/Exportador`, `Analista de Dados`, `Administrador`) e auditoria/logs[cite: 1, 3, 4].
+* **Monitoramento Agrícola:** Cadastro de culturas/frutas, parâmetros ideais (temperatura e umidade) e lotes de produção[cite: 1, 3, 4].
+* **Ingestão de Dados IoT:** Integração direta com sensores físicos (como ESP32/DHT11 via ThingSpeak), evitando duplicidade de dados[cite: 1, 2, 4].
+* **Automação de Alertas:** Disparo automático de alertas via triggers quando medições saem das faixas operacionais configuradas[cite: 1, 5].
+* **Análise e Previsão:** Modelagem para suporte a previsões de mercado, séries temporais climáticas e geração de relatórios[cite: 1, 3, 6].
 
-## Principais entidades
+---
 
-| Tabela               | Descrição                                     |
-| -------------------- | --------------------------------------------- |
-| `perfil`             | Perfis de acesso dos usuários                 |
-| `usuario`            | Dados dos usuários do sistema                 |
-| `fruta`              | Cadastro das frutas monitoradas               |
-| `lote`               | Lotes de produção                             |
-| `sensor`             | Sensores utilizados no monitoramento          |
-| `leitura_climatica`  | Registros de temperatura e umidade            |
-| `config_parametro`   | Parâmetros climáticos por fruta               |
-| `dados_mercado`      | Informações relacionadas ao mercado           |
-| `previsao`           | Previsões realizadas pelo sistema             |
-| `previsao_climatica` | Relação entre previsões e leituras climáticas |
-| `previsao_mercado`   | Relação entre previsões e dados de mercado    |
-| `alerta`             | Alertas gerados pelo sistema                  |
-| `log_acesso`         | Registro das ações dos usuários               |
-| `relatorio`          | Relatórios gerados pelo sistema               |
+## Estrutura de Arquivos SQL
 
-## Integração
+O repositório está organizado na seguinte ordem de execução recomendada:
 
-O banco faz parte de uma arquitetura maior do projeto, que poderá envolver:
+| Arquivo | Descrição |
+| :--- | :--- |
+| `schema.sql` | Criação dos tipos enumerados (`ENUM`) e tabelas principais do sistema[cite: 3]. |
+| `restricoes.sql` | Aplicação de chaves únicas (`UNIQUE`), validações de `NOT NULL` e índices de deduplicação[cite: 2]. |
+| `seed.sql` | Carga inicial de perfis, frutas, faixas ideais recomendadas (UC Davis / Embrapa) e vínculo com sensores físicos[cite: 4]. |
+| `triggers.sql` | Implementação de regras de negócio automatizadas (ex: alertas de variação climática e proteção contra exclusão física de usuários). |
+| `views.sql` | Visões materializadas/consultas prontas para consumo por dashboards e módulos analíticos[cite: 6]. |
 
-**Sensores/ESP32 → coleta de dados → processamento → banco de dados → análise/IA → alertas → dashboard**
+---
 
-A estrutura atual serve como uma das bases para essa integração e poderá ser adaptada conforme os requisitos das outras partes do sistema.
+##  Principais Entidades
 
-## Observação
+| Tabela | Descrição |
+| :--- | :--- |
+| `perfil` | Perfis de acesso do sistema (RBAC)[cite: 1, 3, 4]. |
+| `usuario` | Dados e credenciais de acesso dos usuários[cite: 1, 3]. |
+| `fruta` | Culturas agrícolas monitoradas (ex: Manga, Uva, Melão)[cite: 1, 3, 4]. |
+| `config_parametro` | Configuração das faixas ideais de temperatura e umidade por fruta[cite: 1, 3, 4]. |
+| `lote` | Lotes de produção e seu ciclo de vida[cite: 1, 3]. |
+| `sensor` | Mapeamento dos dispositivos e canais IoT (ex: ThingSpeak `channel_id`)[cite: 1, 3, 4]. |
+| `leitura_climatica` | Histórico de dados coletados (temperatura e umidade) indexados por data e sensor[cite: 1, 3]. |
+| `alerta` | Ocorrências registradas automaticamente ao violar as faixas ideais[cite: 1, 3, 5]. |
+| `dados_mercado` | Registros de preços e demandas para exportação[cite: 1, 3]. |
+| `previsao` / `previsao_climatica` / `previsao_mercado` | Modelagem para integração com modelos preditivos/IA[cite: 1, 3]. |
+| `log_acesso` | Logs de auditoria das ações dos usuários[cite: 1, 3]. |
+| `relatorio` | Histórico e metadados de relatórios gerados[cite: 1, 3]. |
 
-Este repositório apresenta uma **versão de desenvolvimento** do banco de dados.
+---
 
-Portanto:
+## Funcionalidades e Automações Implementadas
 
-* A estrutura ainda pode ser modificada;
-* Novas tabelas e relacionamentos podem ser adicionados;
-* Campos existentes podem ser alterados;
-* Regras de negócio ainda podem ser ajustadas;
-* A modelagem atual não deve ser considerada a versão definitiva do banco.
+* **Deduplicação da Ingestão ThingSpeak:** Garantida pela constraint `uq_leitura_sensor_entry` (`fk_sensor_id_sensor` + `entry_id_thingspeak`)[cite: 2, 3].
+* **Soft Delete para Usuários:** Bloqueio de `DELETE` físico na tabela `usuario` via trigger (`fn_bloquear_delete_usuario`), exigindo o uso de alteração de status (`inativo`)[cite: 3, 5].
+* **Trigger Inteligente de Alerta (`trg_alerta_faixa`):** Detecta transições de faixa ideal e gera alertas automaticamente na transição, evitando poluição de notificações repetitivas a cada leitura[cite: 5].
+* **Views de Dashboard (`vw_status_sensores` e `vw_leituras_diarias_lote`):** Agregações otimizadas para rápido consumo de interfaces e painéis de controle[cite: 6].
 
-A **versão geral/final** será definida após a conclusão da modelagem e integração com os demais módulos do projeto.
+---
+
+## Integração prevista
+
+O banco faz parte de uma arquitetura que poderá integrar diferentes componentes, como:
+
+**Sensores → Coleta de dados → Processamento → Banco de dados → Análise/IA → Alertas → Dashboard**
+
+A estrutura atual serve como base para essa integração e poderá ser modificada conforme os requisitos das demais partes do projeto.
 
 ## Tecnologias
 
@@ -73,6 +80,6 @@ A **versão geral/final** será definida após a conclusão da modelagem e integ
 * SQL
 * Banco de dados relacional
 
-## Desenvolvimento
+## Contexto
 
-Projeto acadêmico desenvolvido como parte do projeto **ValeSafra**.
+Projeto desenvolvido no contexto acadêmico, como parte de uma solução voltada ao monitoramento e análise de dados relacionados à produção agrícola.
