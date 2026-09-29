@@ -72,8 +72,8 @@ BEGIN
     END IF;
 END $$;
 
--- Conferência
-SELECT id_sensor, nome, channel_id, fk_lote_id_lote FROM sensor;
-SELECT f.nome, c.temp_min, c.temp_max, c.umidade_min, c.umidade_max
-FROM config_parametro c JOIN fruta f ON f.id_fruta = c.fk_fruta_id_fruta
-ORDER BY f.nome;
+-- Liga leituras migradas (sem sensor) ao sensor real e exige sensor daqui pra frente
+UPDATE leitura_climatica
+SET fk_sensor_id_sensor = (SELECT id_sensor FROM sensor WHERE channel_id = 3500765)
+WHERE fk_sensor_id_sensor IS NULL;
+
