@@ -280,3 +280,10 @@ CREATE TABLE relatorio (
         REFERENCES usuario (id_usuario)
         ON DELETE RESTRICT
 );
+
+ALTER TABLE leitura_climatica
+  ADD COLUMN entry_id_thingspeak INTEGER;
+
+ALTER TABLE leitura_climatica
+  ADD CONSTRAINT uq_leitura_sensor_entry
+  UNIQUE (fk_sensor_id_sensor, entry_id_thingspeak);
