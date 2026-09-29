@@ -14,8 +14,9 @@ DECLARE
     v_sensor_local TEXT    := 'Bancada';
     v_channel_id   INTEGER := 3500765;
     -- ============================================================
-    v_fruta_id INTEGER;
-    v_lote_id  INTEGER;
+    v_fruta_id  INTEGER;
+    v_lote_id   INTEGER;
+    v_sensor_id INTEGER;
 BEGIN
     -- Perfis (RBAC)
     INSERT INTO perfil (nome, descricao)
@@ -66,14 +67,30 @@ BEGIN
     END IF;
 
     -- Sensor (identificado pelo channel_id do ThingSpeak)
-    IF NOT EXISTS (SELECT 1 FROM sensor WHERE channel_id = v_channel_id) THEN
+    SELECT id_sensor INTO v_sensor_id FROM sensor WHERE channel_id = v_channel_id;
+    IF v_sensor_id IS NULL THEN
         INSERT INTO sensor (nome, tipo_sensor, localizacao, channel_id, status, fk_lote_id_lote)
-        VALUES (v_sensor_nome, 'DHT11', v_sensor_local, v_channel_id, 'ativo', v_lote_id);
+        VALUES (v_sensor_nome, 'DHT11', v_sensor_local, v_channel_id, 'ativo', v_lote_id)
+        RETURNING id_sensor INTO v_sensor_id;
     END IF;
+
+    -- Liga ao sensor real as leituras migradas da tabela antiga (sem sensor)
+    UPDATE leitura_climatica
+    SET fk_sensor_id_sensor = v_sensor_id
+    WHERE fk_sensor_id_sensor IS NULL;
 END $$;
 
--- Liga leituras migradas (sem sensor) ao sensor real e exige sensor daqui pra frente
-UPDATE leitura_climatica
-SET fk_sensor_id_sensor = (SELECT id_sensor FROM sensor WHERE channel_id = 3500765)
-WHERE fk_sensor_id_sensor IS NULL;
+-- Daqui pra frente toda leitura precisa ter sensor
+ALTER TABLE leitura_climatica ALTER COLUMN fk_sensor_id_sensor SET NOT NULL;
 
+-- Conferência
+SELECT id_sensor, nome, channel_id, fk_lote_id_lote FROM sensor;
+
+SELECT f.nome, c.temp_min, c.temp_max, c.umidade_min, c.umidade_max
+FROM config_parametro c
+JOIN fruta f ON f.id_fruta = c.fk_fruta_id_fruta
+ORDER BY f.nome;
+
+SELECT count(*) AS leituras_total,
+       count(*) FILTER (WHERE fk_sensor_id_sensor IS NULL) AS sem_sensor
+FROM leitura_climatica;
