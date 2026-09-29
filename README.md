@@ -24,7 +24,7 @@ Fornecer uma base de dados consistente e segura para:
 
 ---
 
-## 📂 Estrutura e Ordem de Execução dos Arquivos SQL
+## Estrutura e Ordem de Execução dos Arquivos SQL
 
 Para a correta criação e inicialização do banco de dados, execute os arquivos na seguinte sequência obrigatória:
 
