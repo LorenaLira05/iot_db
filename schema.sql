@@ -285,3 +285,40 @@ CREATE TABLE relatorio (
         REFERENCES usuario (id_usuario)
         ON DELETE RESTRICT
 );
+
+CREATE TABLE IF NOT EXISTS leitura_rejeitada (
+    id_rejeicao         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fk_sensor_id_sensor INTEGER,
+    entry_id_thingspeak INTEGER,
+    temperatura_bruta   VARCHAR(100),
+    umidade_bruta       VARCHAR(100),
+    data_hora_bruta     VARCHAR(100),
+    motivo              VARCHAR(255) NOT NULL,
+    origem              VARCHAR(150),
+    data_rejeicao       TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
+
+    CONSTRAINT fk_leitura_rejeitada_sensor
+        FOREIGN KEY (fk_sensor_id_sensor)
+        REFERENCES sensor (id_sensor)
+        ON DELETE SET NULL,
+
+    CONSTRAINT uq_rejeitada_sensor_entry
+        UNIQUE (fk_sensor_id_sensor, entry_id_thingspeak)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rejeitada_sensor_data
+    ON leitura_rejeitada (fk_sensor_id_sensor, data_rejeicao);
+
+DO $$
+BEGIN
+    IF (SELECT data_type
+          FROM information_schema.columns
+         WHERE table_name = 'log_acesso' AND column_name = 'ip') = 'integer' THEN
+        ALTER TABLE log_acesso ALTER COLUMN ip TYPE INET USING NULL;
+    END IF;
+END $$;
+
+CREATE INDEX IF NOT EXISTS idx_log_acesso_data ON log_acesso (data_hora);
+
+COMMIT;
+
