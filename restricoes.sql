@@ -1,6 +1,6 @@
 -- restricoes.sql
 -- Restrições que faltavam no schema. Pode rodar mais de uma vez.
--- Ordem: schema -> restricoes.sql -> seed.sql
+-- Ordem: schema -> restricoes.sql -> triggers -> views -> seed.sql
 -- Se algum passo falhar por dados que violam a regra, a transação desfaz tudo:
 -- corrija os dados, rode ROLLBACK; e execute de novo.
 
@@ -49,10 +49,14 @@ BEGIN
         ALTER TABLE fruta ADD CONSTRAINT uq_fruta_nome UNIQUE (nome);
     END IF;
 
-    -- uma faixa ideal por fruta
-    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_config_fruta') THEN
+    -- uma faixa ideal por fruta E ETAPA (a antiga uq_config_fruta impedia 2 etapas)
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_config_fruta') THEN
+        ALTER TABLE config_parametro DROP CONSTRAINT uq_config_fruta;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'uq_config_fruta_etapa') THEN
         ALTER TABLE config_parametro
-            ADD CONSTRAINT uq_config_fruta UNIQUE (fk_fruta_id_fruta);
+            ADD CONSTRAINT uq_config_fruta_etapa UNIQUE (fk_fruta_id_fruta, etapa);
     END IF;
 
     -- channel_id NULL pode repetir (sensores simulados); só o valor preenchido é único
@@ -62,11 +66,39 @@ BEGIN
 END $$;
 
 -- ============================================================
+-- CHECKs das colunas novas
+-- ============================================================
+ALTER TABLE sensor DROP CONSTRAINT IF EXISTS ck_sensor_ambiente;
+ALTER TABLE sensor ADD CONSTRAINT ck_sensor_ambiente
+    CHECK (ambiente IN ('ar','solo'));
+
+ALTER TABLE config_parametro DROP CONSTRAINT IF EXISTS ck_config_etapa;
+ALTER TABLE config_parametro ADD CONSTRAINT ck_config_etapa
+    CHECK (etapa IN ('campo','armazenamento','transporte'));
+
+ALTER TABLE previsao DROP CONSTRAINT IF EXISTS ck_previsao_tipo;
+ALTER TABLE previsao ADD CONSTRAINT ck_previsao_tipo
+    CHECK (tipo IS NULL OR tipo IN ('risco_climatico','irrigacao','prejuizo','janela_colheita'));
+
+ALTER TABLE lote DROP CONSTRAINT IF EXISTS ck_lote_unidade;
+ALTER TABLE lote ADD CONSTRAINT ck_lote_unidade
+    CHECK (unidade IN ('kg','caixa','t'));
+
+ALTER TABLE viagem DROP CONSTRAINT IF EXISTS ck_viagem_status;
+ALTER TABLE viagem ADD CONSTRAINT ck_viagem_status
+    CHECK (status IN ('programada','em_transporte','concluida','cancelada'));
+
+ALTER TABLE perda_risco DROP CONSTRAINT IF EXISTS ck_perda_fracao;
+ALTER TABLE perda_risco ADD CONSTRAINT ck_perda_fracao
+    CHECK (fracao_perda BETWEEN 0 AND 1);
+
+-- ============================================================
 -- Opcional (descomente quando fizer sentido)
 -- ============================================================
 
 -- log_acesso.ip é INTEGER e não guarda IPs como 192.168.0.1. Antes de usar o log:
 -- ALTER TABLE log_acesso ALTER COLUMN ip TYPE INET USING NULL;
+-- (o schema.sql já converte para INET)
 
 COMMIT;
 
