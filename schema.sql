@@ -322,3 +322,123 @@ CREATE INDEX IF NOT EXISTS idx_log_acesso_data ON log_acesso (data_hora);
 
 COMMIT;
 
+ALTER TABLE sensor
+  ADD COLUMN IF NOT EXISTS ambiente VARCHAR(10) NOT NULL DEFAULT 'ar',
+  ADD CONSTRAINT ck_sensor_ambiente CHECK (ambiente IN ('ar','solo'));
+
+ALTER TABLE config_parametro
+  ADD COLUMN IF NOT EXISTS etapa VARCHAR(15) NOT NULL DEFAULT 'armazenamento',
+  ADD CONSTRAINT ck_config_etapa CHECK (etapa IN ('campo','armazenamento','transporte'));
+
+ALTER TABLE config_parametro
+  ADD CONSTRAINT uq_config_fruta_etapa UNIQUE (fk_fruta_id_fruta, etapa);
+
+ALTER TABLE alerta ADD COLUMN IF NOT EXISTS data_hora TIMESTAMP;
+UPDATE alerta SET data_hora = CURRENT_DATE + hora WHERE data_hora IS NULL;  -- legado: assume hoje
+ALTER TABLE alerta ALTER COLUMN data_hora SET DEFAULT now();
+-- Depois de atualizar o trigger/backend, rode:
+--   ALTER TABLE alerta ALTER COLUMN data_hora SET NOT NULL;
+--   ALTER TABLE alerta DROP COLUMN hora;
+CREATE INDEX IF NOT EXISTS idx_alerta_data_hora ON alerta (data_hora);
+
+ALTER TABLE previsao
+  ADD COLUMN IF NOT EXISTS tipo      VARCHAR(20),
+  ADD COLUMN IF NOT EXISTS categoria nivel_alerta,          -- reaproveita o enum (baixo/médio/alto)
+  ADD COLUMN IF NOT EXISTS valor     NUMERIC(14,2),
+  ADD COLUMN IF NOT EXISTS unidade   VARCHAR(15),           -- 'mm', 'L', 'BRL'
+  ADD COLUMN IF NOT EXISTS gerado_em TIMESTAMP NOT NULL DEFAULT now(),
+  ADD COLUMN IF NOT EXISTS detalhes  JSONB,                 -- insumos + explicação
+  ADD CONSTRAINT ck_previsao_tipo CHECK (
+    tipo IS NULL OR tipo IN ('risco_climatico','irrigacao','prejuizo','janela_colheita'));
+CREATE INDEX IF NOT EXISTS idx_previsao_lote_tipo ON previsao (fk_lote_id_lote, tipo, gerado_em DESC);
+
+CREATE TABLE IF NOT EXISTS porto (
+  id_porto  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  nome      VARCHAR(80) NOT NULL UNIQUE,
+  uf        CHAR(2)     NOT NULL,
+  latitude  NUMERIC(9,6) NOT NULL,
+  longitude NUMERIC(9,6) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rota (
+  id_rota           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  fk_porto_id_porto INTEGER NOT NULL UNIQUE REFERENCES porto (id_porto) ON DELETE CASCADE,
+  origem_nome       VARCHAR(80) NOT NULL DEFAULT 'Petrolina',
+  distancia_km      NUMERIC(8,1),
+  duracao_min       INTEGER,
+  tracado           JSONB,                 -- GeoJSON da API de rotas
+  atualizado_em     TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS viagem (
+  id_viagem         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  fk_lote_id_lote   INTEGER NOT NULL REFERENCES lote (id_lote)  ON DELETE CASCADE,
+  fk_porto_id_porto INTEGER NOT NULL REFERENCES porto (id_porto) ON DELETE RESTRICT,
+  saida             TIMESTAMP NOT NULL,
+  chegada_prevista  TIMESTAMP,
+  status            VARCHAR(15) NOT NULL DEFAULT 'programada'
+    CHECK (status IN ('programada','em_transporte','concluida','cancelada'))
+);
+CREATE INDEX IF NOT EXISTS idx_viagem_status ON viagem (status);
+
+INSERT INTO porto (nome, uf, latitude, longitude) VALUES   -- coordenadas aproximadas, confira
+  ('Pecém',    'CE',  -3.5400, -38.8000),
+  ('Suape',    'PE',  -8.3900, -34.9600),
+  ('Salvador', 'BA', -12.9700, -38.5100),
+  ('Natal',    'RN',  -5.7800, -35.2000)
+ON CONFLICT (nome) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS perda_risco (
+  categoria    nivel_alerta PRIMARY KEY,
+  fracao_perda NUMERIC(4,3) NOT NULL CHECK (fracao_perda BETWEEN 0 AND 1)
+);
+INSERT INTO perda_risco VALUES ('baixo',0.02),('médio',0.10),('alto',0.30)
+ON CONFLICT (categoria) DO NOTHING;
+
+ALTER TABLE lote
+  ADD COLUMN IF NOT EXISTS unidade VARCHAR(10) NOT NULL DEFAULT 'kg',
+  ADD CONSTRAINT ck_lote_unidade CHECK (unidade IN ('kg','caixa','t'));
+ALTER TABLE dados_mercado
+  ADD COLUMN IF NOT EXISTS unidade VARCHAR(10) NOT NULL DEFAULT 'kg',
+  ADD COLUMN IF NOT EXISTS moeda   CHAR(3)     NOT NULL DEFAULT 'BRL';
+
+CREATE OR REPLACE VIEW vw_leitura_hora AS
+SELECT fk_sensor_id_sensor,
+       date_trunc('hour', data_hora) AS hora,
+       ROUND(AVG(temperatura)::numeric, 2) AS temperatura_media,
+       ROUND(AVG(umidade), 2)              AS umidade_media,
+       COUNT(*)                            AS n_leituras
+FROM leitura_climatica
+GROUP BY fk_sensor_id_sensor, date_trunc('hour', data_hora);
+
+/* 9. selo do lote: % de leituras das últimas 24 h dentro da faixa */
+CREATE OR REPLACE VIEW vw_lote_saude AS
+WITH lote_etapa AS (
+  SELECT l.id_lote, l.fk_fruta_id_fruta, l.status,
+         CASE l.status
+           WHEN 'Em produção'          THEN 'campo'
+           WHEN 'Pronto para colheita' THEN 'campo'
+           WHEN 'Em transporte'        THEN 'transporte'
+           ELSE 'armazenamento'
+         END AS etapa
+  FROM lote l
+), pct AS (
+  SELECT le.id_lote,
+         COUNT(*) AS n,
+         100.0 * COUNT(*) FILTER (
+           WHERE r.temperatura BETWEEN c.temp_min AND c.temp_max
+             AND r.umidade     BETWEEN c.umidade_min AND c.umidade_max
+         ) / NULLIF(COUNT(*), 0) AS pct_na_faixa
+  FROM lote_etapa le
+  JOIN sensor s ON s.fk_lote_id_lote = le.id_lote
+  JOIN leitura_climatica r ON r.fk_sensor_id_sensor = s.id_sensor
+                          AND r.data_hora >= now() - interval '24 hours'
+  JOIN config_parametro c ON c.fk_fruta_id_fruta = le.fk_fruta_id_fruta
+                         AND c.etapa = le.etapa
+  GROUP BY le.id_lote
+)
+SELECT id_lote, n AS n_leituras, ROUND(pct_na_faixa, 1) AS pct_na_faixa,
+       CASE WHEN pct_na_faixa >= 90 THEN 'Saudável'   -- limites provisórios: o grupo define
+            WHEN pct_na_faixa >= 70 THEN 'Atenção'
+            ELSE 'Crítico' END AS selo
+FROM pct;
