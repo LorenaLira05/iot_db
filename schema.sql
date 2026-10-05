@@ -411,32 +411,6 @@ SELECT fk_sensor_id_sensor,
 FROM leitura_climatica
 GROUP BY fk_sensor_id_sensor, date_trunc('hour', data_hora);
 
-/* 9. selo do lote: % de leituras das últimas 24 h dentro da faixa */
-CREATE OR REPLACE VIEW vw_lote_saude AS
-WITH lote_etapa AS (
-  SELECT l.id_lote, l.fk_fruta_id_fruta, l.status,
-         CASE l.status
-           WHEN 'Em produção'          THEN 'campo'
-           WHEN 'Pronto para colheita' THEN 'campo'
-           WHEN 'Em transporte'        THEN 'transporte'
-           ELSE 'armazenamento'
-         END AS etapa
-  FROM lote l
-), pct AS (
-  SELECT le.id_lote,
-         COUNT(*) AS n,
-         100.0 * COUNT(*) FILTER (
-           WHERE r.temperatura BETWEEN c.temp_min AND c.temp_max
-             AND r.umidade     BETWEEN c.umidade_min AND c.umidade_max
-         ) / NULLIF(COUNT(*), 0) AS pct_na_faixa
-  FROM lote_etapa le
-  JOIN sensor s ON s.fk_lote_id_lote = le.id_lote
-  JOIN leitura_climatica r ON r.fk_sensor_id_sensor = s.id_sensor
-                          AND r.data_hora >= now() - interval '24 hours'
-  JOIN config_parametro c ON c.fk_fruta_id_fruta = le.fk_fruta_id_fruta
-                         AND c.etapa = le.etapa
-  GROUP BY le.id_lote
-)
 SELECT id_lote, n AS n_leituras, ROUND(pct_na_faixa, 1) AS pct_na_faixa,
        CASE WHEN pct_na_faixa >= 90 THEN 'Saudável'   -- limites provisórios: o grupo define
             WHEN pct_na_faixa >= 70 THEN 'Atenção'
