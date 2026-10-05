@@ -53,3 +53,8 @@ WITH lote_etapa AS (
                          AND c.etapa = le.etapa
   GROUP BY le.id_lote
 )
+SELECT id_lote, n AS n_leituras, ROUND(pct_na_faixa, 1) AS pct_na_faixa,
+       CASE WHEN pct_na_faixa >= 90 THEN 'Saudável'   -- limites provisórios: o grupo define
+            WHEN pct_na_faixa >= 70 THEN 'Atenção'
+            ELSE 'Crítico' END AS selo
+FROM pct;
