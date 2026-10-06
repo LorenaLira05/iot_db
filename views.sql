@@ -1,5 +1,5 @@
 -- views.sql
--- Rodar depois dos triggers (vw_lote_saude usa fn_etapa_lote).
+-- Rodar por último (vw_lote_saude usa fn_etapa_lote, criada em triggers.sql).
 
 -- View para o dashboard
 CREATE OR REPLACE VIEW vw_status_sensores AS
