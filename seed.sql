@@ -96,6 +96,31 @@ INSERT INTO perda_risco (categoria, fracao_perda)
 VALUES ('baixo', 0.02), ('médio', 0.10), ('alto', 0.30)
 ON CONFLICT (categoria) DO NOTHING;
 
+-- cria o sensor simulado de solo (no mesmo lote do sensor real, id 1), se ainda não existir
+INSERT INTO sensor (nome, tipo_sensor, localizacao, ambiente, status, fk_lote_id_lote)
+SELECT 'Solo simulado', 'simulado', 'Solo (simulado)', 'solo', 'ativo', fk_lote_id_lote
+FROM sensor
+WHERE id_sensor = 1
+  AND NOT EXISTS (SELECT 1 FROM sensor WHERE nome = 'Solo simulado');
+
+-- gera leituras horárias (30 dias para trás até agora). Pode rodar de novo: só completa o que falta.
+INSERT INTO leitura_climatica
+    (fk_sensor_id_sensor, temperatura, umidade, data_hora, data_recebimento, origem)
+SELECT s.id_sensor,
+       ROUND((25 + 3 * sin(2 * pi() * (((extract(hour from t)::int + 21) % 24) - 9) / 24.0)
+                + (random() - 0.5) * 0.6)::numeric, 1),
+       ROUND((60 + 8 * sin(2 * pi() * (extract(epoch from t) / 3600.0) / 72.0)
+                + (random() - 0.5) * 2)::numeric, 1),
+       t, t, 'simulado'
+FROM sensor s
+CROSS JOIN LATERAL generate_series(
+        COALESCE((SELECT max(l.data_hora) + interval '1 hour'
+                  FROM leitura_climatica l WHERE l.fk_sensor_id_sensor = s.id_sensor),
+                 date_trunc('hour', now() AT TIME ZONE 'UTC') - interval '30 days'),
+        date_trunc('hour', now() AT TIME ZONE 'UTC'),
+        interval '1 hour') AS t
+WHERE s.nome = 'Solo simulado';
+
 -- Conferência
 SELECT id_sensor, nome, channel_id, fk_lote_id_lote FROM sensor;
 
