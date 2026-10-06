@@ -1,6 +1,6 @@
-# Banco de Dados ValeSafra
+# Banco de Dados RAIZ
 
-Banco de dados relacional (PostgreSQL) desenvolvido para o projeto **ValeSafra**, focado no monitoramento climático em tempo real, acompanhamento de lotes agrícolas, automação de alertas de contorno de faixa ideal e suporte a análises e previsões de mercado e colheita.
+Banco de dados relacional (PostgreSQL) desenvolvido para o projeto **RAIZ**, focado no monitoramento climático em tempo real, acompanhamento de lotes agrícolas, automação de alertas de contorno de faixa ideal e suporte a análises e previsões de mercado e colheita.
 
 ---
 
@@ -24,22 +24,18 @@ Fornecer uma base de dados consistente e segura para:
 
 ---
 
-## Estrutura e Ordem de Execução dos Arquivos SQL
+## Como criar o banco
 
-Para a correta criação e inicialização do banco de dados, execute os arquivos na seguinte sequência obrigatória:
+O script cria o banco (se não existir) e roda os arquivos abaixo, **nesta ordem**, parando no primeiro erro. Todos são idempotentes: rodar de novo não quebra, e em um banco local antigo eles atualizam a estrutura.
 
-1. **`schema.sql`**
-   Criação dos tipos enumerados (`ENUM`) e estrutura básica de todas as tabelas do sistema[.
-2. **`restricoes.sql`**
-   Aplicação de restrições de integridade (`NOT NULL`, `UNIQUE`), chaves únicas e índices de deduplicação da ingestão.
-3. **`seed.sql`**
-   Carga inicial de dados necessários (perfis de acesso, frutas, faixas ideais de temperatura/umidade e vinculação do sensor físico).
-4. **`triggers.sql`**
-   Criação das funções e gatilhos para automação de regras de negócio (alertas automáticos por variação climática e prevenção contra exclusão física de usuários).
-5. **`views.sql`**
-   Criação de visões otimizadas para consulta e alimentação dos painéis de dashboard e análises agregadas diárias.
+1. **`schema.sql`**: tipos `ENUM`, todas as tabelas no estado final e atualização de bancos antigos.
+2. **`restricoes.sql`**: `NOT NULL`, `UNIQUE` e `CHECK`.
+3. **`seed.sql`**: perfis, frutas, faixas de armazenamento, portos, lote e sensor real (canal 3500765).
+4. **`triggers.sql`**: alerta automático na transição para fora da faixa e bloqueio de `DELETE` em `usuario`.
+5. **`views.sql`**: views do dashboard (depende de `fn_etapa_lote`, criada em `triggers.sql`).
 
----
+Datas são gravadas em UTC; o front converte para `America/Recife`.
+
 ---
 
 ##  Principais Entidades
@@ -66,7 +62,7 @@ Para a correta criação e inicialização do banco de dados, execute os arquivo
 * **Deduplicação da Ingestão ThingSpeak:** Garantida pela constraint `uq_leitura_sensor_entry` (`fk_sensor_id_sensor` + `entry_id_thingspeak`).
 * **Soft Delete para Usuários:** Bloqueio de `DELETE` físico na tabela `usuario` via trigger (`fn_bloquear_delete_usuario`), exigindo o uso de alteração de status (`inativo`).
 * **Trigger Inteligente de Alerta (`trg_alerta_faixa`):** Detecta transições de faixa ideal e gera alertas automaticamente na transição, evitando poluição de notificações repetitivas a cada leitura.
-* **Views de Dashboard (`vw_status_sensores` e `vw_leituras_diarias_lote`):** Agregações otimizadas para rápido consumo de interfaces e painéis de controle.
+* **Views de Dashboard (`vw_status_sensores`, `vw_leitura_hora`, `vw_leituras_diarias_lote` e `vw_lote_saude`):** Agregações otimizadas para rápido consumo de interfaces e painéis de controle.
 
 ---
 
