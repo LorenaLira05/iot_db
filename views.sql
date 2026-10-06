@@ -50,9 +50,10 @@ WITH pct AS (
              AND r.umidade     BETWEEN c.umidade_min AND c.umidade_max
          ) / NULLIF(COUNT(*), 0) AS pct_na_faixa
   FROM lote l
-  JOIN sensor s ON s.fk_lote_id_lote = l.id_lote
-  JOIN leitura_climatica r ON r.fk_sensor_id_sensor = s.id_sensor
-                          AND r.data_hora >= now() - interval '24 hours'
+    JOIN sensor s ON s.fk_lote_id_lote = l.id_lote
+       AND s.ambiente = 'ar'   -- so ar: a faixa e de ar; solo (simulado) nao entra
+       JOIN leitura_climatica r ON r.fk_sensor_id_sensor = s.id_sensor
+              AND r.data_hora >= (now() AT TIME ZONE 'UTC') - interval '24 hours'
   JOIN LATERAL (
     SELECT c.* FROM config_parametro c
     WHERE c.fk_fruta_id_fruta = l.fk_fruta_id_fruta
