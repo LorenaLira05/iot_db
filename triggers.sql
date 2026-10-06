@@ -1,10 +1,23 @@
+-- triggers.sql
+-- Funções e gatilhos. Idempotente. Roda depois do seed.sql.
+
+CREATE OR REPLACE FUNCTION fn_etapa_lote(p_status status_lote)
+RETURNS VARCHAR AS $$
+    SELECT CASE p_status
+             WHEN 'Em produção'          THEN 'campo'
+             WHEN 'Pronto para colheita' THEN 'campo'
+             WHEN 'Em transporte'        THEN 'transporte'
+             ELSE 'armazenamento'
+           END;
+$$ LANGUAGE sql IMMUTABLE;
+
 CREATE OR REPLACE FUNCTION fn_alerta_faixa()
 RETURNS TRIGGER AS $$
 DECLARE
     v_cfg config_parametro%ROWTYPE;
     v_ant RECORD;
     v_etapa         VARCHAR;
-    v_agora         TIMESTAMP := (now() AT TIME ZONE 'America/Recife');
+    v_agora         TIMESTAMP := (now() AT TIME ZONE 'UTC');  -- UTC; o front converte para America/Recife
     v_temp_fora     BOOLEAN;
     v_umid_fora     BOOLEAN;
     v_temp_fora_ant BOOLEAN := FALSE;
@@ -74,16 +87,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE OR REPLACE FUNCTION fn_etapa_lote(p_status status_lote)
-RETURNS VARCHAR AS $$
-    SELECT CASE p_status
-             WHEN 'Em produção'          THEN 'campo'
-             WHEN 'Pronto para colheita' THEN 'campo'
-             WHEN 'Em transporte'        THEN 'transporte'
-             ELSE 'armazenamento'
-           END;
-$$ LANGUAGE sql IMMUTABLE;
-
+DROP TRIGGER IF EXISTS trg_alerta_faixa ON leitura_climatica;
 CREATE TRIGGER trg_alerta_faixa
 AFTER INSERT ON leitura_climatica
 FOR EACH ROW EXECUTE FUNCTION fn_alerta_faixa();
@@ -95,6 +99,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS trg_bloquear_delete_usuario ON usuario;
 CREATE TRIGGER trg_bloquear_delete_usuario
 BEFORE DELETE ON usuario
 FOR EACH ROW EXECUTE FUNCTION fn_bloquear_delete_usuario();
