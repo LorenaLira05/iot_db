@@ -1,7 +1,7 @@
 -- seed.sql
 -- Dados iniciais do banco. Pode rodar mais de uma vez: só insere o que não existe
 -- e atualiza as faixas ideais de config_parametro.
--- Ordem: schema -> restricoes.sql -> seed.sql
+-- Ordem: schema -> restricoes -> seed -> triggers -> views
 -- Ajuste os valores da seção CONFIG antes de rodar.
 
 DO $$
@@ -39,15 +39,15 @@ BEGIN
     -- tabela de compatibilidade), National Mango Board, artigos Embrapa/SciELO (melão amarelo).
     -- Mudar um valor aqui e rodar o seed de novo atualiza a linha.
     INSERT INTO config_parametro
-        (fk_fruta_id_fruta, temp_min, temp_max, umidade_min, umidade_max)
-    SELECT f.id_fruta, p.tmin, p.tmax, p.umin, p.umax
+        (fk_fruta_id_fruta, etapa, temp_min, temp_max, umidade_min, umidade_max)
+    SELECT f.id_fruta, 'armazenamento', p.tmin, p.tmax, p.umin, p.umax
     FROM (VALUES
         ('Manga',  10.0, 13.0, 90.0, 95.0),
         ('Uva',    -0.5,  2.0, 90.0, 95.0),
         ('Melão',  10.0, 12.0, 85.0, 95.0)
     ) AS p(nome, tmin, tmax, umin, umax)
     JOIN fruta f ON f.nome = p.nome
-    ON CONFLICT (fk_fruta_id_fruta) DO UPDATE
+    ON CONFLICT (fk_fruta_id_fruta, etapa) DO UPDATE
         SET temp_min    = EXCLUDED.temp_min,
             temp_max    = EXCLUDED.temp_max,
             umidade_min = EXCLUDED.umidade_min,
@@ -82,6 +82,19 @@ END $$;
 
 -- Daqui pra frente toda leitura precisa ter sensor
 ALTER TABLE leitura_climatica ALTER COLUMN fk_sensor_id_sensor SET NOT NULL;
+
+-- Portos (só nome/UF reais; coordenadas aproximadas, confira antes de usar em rota)
+INSERT INTO porto (nome, uf, latitude, longitude) VALUES
+    ('Pecém',    'CE',  -3.5400, -38.8000),
+    ('Suape',    'PE',  -8.3900, -34.9600),
+    ('Salvador', 'BA', -12.9700, -38.5100),
+    ('Natal',    'RN',  -5.7800, -35.2000)
+ON CONFLICT (nome) DO NOTHING;
+
+-- Fração de perda por categoria de risco (valores provisórios: o grupo define)
+INSERT INTO perda_risco (categoria, fracao_perda)
+VALUES ('baixo', 0.02), ('médio', 0.10), ('alto', 0.30)
+ON CONFLICT (categoria) DO NOTHING;
 
 -- Conferência
 SELECT id_sensor, nome, channel_id, fk_lote_id_lote FROM sensor;
