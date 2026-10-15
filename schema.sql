@@ -84,6 +84,11 @@ CREATE TABLE IF NOT EXISTS leitura_climatica (
         REFERENCES sensor (id_sensor) ON DELETE RESTRICT,
     CONSTRAINT uq_leitura_sensor_entry UNIQUE (fk_sensor_id_sensor, entry_id_thingspeak)
 );
+
+ALTER TABLE leitura_climatica
+ADD COLUMN umidade_solo NUMERIC(5,2),
+ADD COLUMN temperatura_solo DOUBLE PRECISION;
+
 CREATE INDEX IF NOT EXISTS idx_leitura_sensor_data
     ON leitura_climatica (fk_sensor_id_sensor, data_hora);
 
@@ -230,11 +235,66 @@ CREATE TABLE IF NOT EXISTS viagem (
     chegada_prevista  TIMESTAMP,
     status            VARCHAR(15) NOT NULL DEFAULT 'programada'
 );
+
+CREATE TABLE leitura_transporte (
+   id_leitura_transporte INTEGER
+       GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+   fk_viagem_id_viagem INTEGER NOT NULL
+       REFERENCES viagem (id_viagem)
+       ON DELETE CASCADE,
+   data_hora TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+   temperatura_camara DOUBLE PRECISION,
+   umidade_camara NUMERIC(5,2),
+   latitude NUMERIC(9,6),
+   longitude NUMERIC(9,6)
+);
+
 CREATE INDEX IF NOT EXISTS idx_viagem_status ON viagem (status);
 
 CREATE TABLE IF NOT EXISTS perda_risco (
     categoria    nivel_alerta PRIMARY KEY,
     fracao_perda NUMERIC(4,3) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS safra (
+    id_safra INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nome VARCHAR(20) NOT NULL UNIQUE,          -- '2025/2026'
+    data_inicio DATE NOT NULL,
+    data_fim DATE,
+    meta_ton_ha NUMERIC(6,2)
+);
+
+CREATE TABLE IF NOT EXISTS lote_classificacao (
+    fk_lote_id_lote INTEGER REFERENCES lote (id_lote) ON DELETE CASCADE,
+    categoria VARCHAR(20) NOT NULL,   -- exportacao, mercado_interno, processamento
+    quantidade_kg NUMERIC(12,2) NOT NULL,
+    PRIMARY KEY (fk_lote_id_lote, categoria)
+);
+
+CREATE TABLE IF NOT EXISTS propriedade (
+    id_propriedade INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    nome VARCHAR(150) NOT NULL,
+    codigo VARCHAR(30) UNIQUE,
+    cidade VARCHAR(80), uf CHAR(2), setor VARCHAR(40),
+    latitude NUMERIC(9,6), longitude NUMERIC(9,6),
+    area_ha NUMERIC(10,2),
+    tipo_solo VARCHAR(150),
+    moeda_exibicao CHAR(3) NOT NULL DEFAULT 'BRL'
+);
+
+
+CREATE TABLE IF NOT EXISTS variedade (
+    id_variedade INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fk_fruta_id_fruta INTEGER NOT NULL REFERENCES fruta (id_fruta) ON DELETE CASCADE,
+    nome VARCHAR(80) NOT NULL,
+    UNIQUE (fk_fruta_id_fruta, nome)
+);
+
+CREATE TABLE IF NOT EXISTS padrao_qualidade (
+    fk_variedade_id_variedade INTEGER PRIMARY KEY REFERENCES variedade (id_variedade) ON DELETE CASCADE,
+    brix_min NUMERIC(4,1),
+    calibre_min VARCHAR(20),
+    classe VARCHAR(30)            -- ex.: 'Exportação A+'
 );
 
 /* ===== ATUALIZAÇÃO de bancos locais antigos (no banco novo não faz nada) ===== */
