@@ -233,3 +233,18 @@ CREATE TABLE parametro_irrigacao (
     CONSTRAINT chk_umidade_solo
         CHECK (umidade_solo_minima BETWEEN 0 AND 100)
 );
+
+-- parecer da IA e gerir o cache por lote
+CREATE TABLE IF NOT EXISTS parecer_ia (
+    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    id_lote INTEGER NOT NULL REFERENCES lote(id) ON DELETE CASCADE,
+    modelo VARCHAR(100) NOT NULL,
+    snapshot_entrada JSONB NOT NULL,
+    conteudo_json JSONB NOT NULL,
+    data_geracao TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    data_expiracao TIMESTAMP WITH TIME ZONE NOT NULL
+);
+
+-- Índice para acelerar a busca de cache ativo por lote
+CREATE INDEX IF NOT EXISTS idx_parecer_ia_lote_expiracao 
+ON parecer_ia (id_lote, data_expiracao DESC);
