@@ -1,34 +1,42 @@
 -- views.sql
 -- Rodar por último (vw_lote_saude usa fn_etapa_lote, criada em triggers.sql).
+-- Regra: colunas de ar (temperatura/umidade) vêm só de sensores com ambiente = 'ar';
+--        colunas *_solo vêm só dos sensores de solo. Colunas novas ficam no FIM de cada view.
 
--- View para o dashboard
+-- View para o dashboard: última leitura de cada sensor
 CREATE OR REPLACE VIEW vw_status_sensores AS
 SELECT s.id_sensor, s.nome, s.channel_id, s.status,
        s.fk_lote_id_lote AS id_lote,
-       u.data_hora AS ultima_leitura, u.temperatura, u.umidade
+       u.data_hora AS ultima_leitura, u.temperatura, u.umidade,
+       s.ambiente, u.temperatura_solo, u.umidade_solo
 FROM sensor s
 LEFT JOIN LATERAL (
-    SELECT l.data_hora, l.temperatura, l.umidade
+    SELECT l.data_hora, l.temperatura, l.umidade, l.temperatura_solo, l.umidade_solo
     FROM leitura_climatica l
     WHERE l.fk_sensor_id_sensor = s.id_sensor
     ORDER BY l.data_hora DESC
     LIMIT 1
 ) u ON TRUE;
 
--- Analista: agregações diárias por lote
+-- Analista: agregações diárias por lote. O dia é o dia LOCAL (America/Recife), não o dia UTC.
 CREATE OR REPLACE VIEW vw_leituras_diarias_lote AS
 SELECT s.fk_lote_id_lote AS id_lote,
-       l.data_hora::date AS dia,
-       avg(l.temperatura) AS temp_media,
-       min(l.temperatura) AS temp_min,
-       max(l.temperatura) AS temp_max,
-       avg(l.umidade)     AS umid_media,
-       min(l.umidade)     AS umid_min,
-       max(l.umidade)     AS umid_max,
-       count(*)           AS qtd_leituras
+       ((l.data_hora AT TIME ZONE 'UTC') AT TIME ZONE 'America/Recife')::date AS dia,
+       avg(l.temperatura) FILTER (WHERE s.ambiente = 'ar') AS temp_media,
+       min(l.temperatura) FILTER (WHERE s.ambiente = 'ar') AS temp_min,
+       max(l.temperatura) FILTER (WHERE s.ambiente = 'ar') AS temp_max,
+       avg(l.umidade)     FILTER (WHERE s.ambiente = 'ar') AS umid_media,
+       min(l.umidade)     FILTER (WHERE s.ambiente = 'ar') AS umid_min,
+       max(l.umidade)     FILTER (WHERE s.ambiente = 'ar') AS umid_max,
+       count(*)           FILTER (WHERE s.ambiente = 'ar') AS qtd_leituras,
+       avg(l.temperatura_solo) AS temp_solo_media,
+       avg(l.umidade_solo)     AS umid_solo_media,
+       min(l.umidade_solo)     AS umid_solo_min,
+       max(l.umidade_solo)     AS umid_solo_max,
+       count(*)           FILTER (WHERE s.ambiente = 'solo') AS qtd_leituras_solo
 FROM leitura_climatica l
 JOIN sensor s ON s.id_sensor = l.fk_sensor_id_sensor
-GROUP BY s.fk_lote_id_lote, l.data_hora::date;
+GROUP BY 1, 2;
 
 -- Gráficos do dashboard: médias por hora (troque 'hour' por 'day' para diário)
 CREATE OR REPLACE VIEW vw_leitura_hora AS
@@ -36,11 +44,13 @@ SELECT fk_sensor_id_sensor,
        date_trunc('hour', data_hora) AS hora,
        ROUND(AVG(temperatura)::numeric, 2) AS temperatura_media,
        ROUND(AVG(umidade), 2)              AS umidade_media,
-       COUNT(*)                            AS n_leituras
+       COUNT(*)                            AS n_leituras,
+       ROUND(AVG(umidade_solo), 2)              AS umidade_solo_media,
+       ROUND(AVG(temperatura_solo)::numeric, 2) AS temperatura_solo_media
 FROM leitura_climatica
 GROUP BY fk_sensor_id_sensor, date_trunc('hour', data_hora);
 
--- Selo do lote: % de leituras das últimas 24 h dentro da faixa da etapa
+-- Selo do lote: % de leituras das últimas 24 h dentro da faixa da etapa (só sensores de ar)
 CREATE OR REPLACE VIEW vw_lote_saude AS
 WITH pct AS (
   SELECT l.id_lote,
@@ -69,3 +79,23 @@ SELECT id_lote, n AS n_leituras, ROUND(pct_na_faixa, 1) AS pct_na_faixa,
             WHEN pct_na_faixa >= 70 THEN 'Atenção'
             ELSE 'Crítico' END AS selo
 FROM pct;
+
+-- Conferência da classificação: a soma por categoria (kg) não deve passar da quantidade do lote.
+-- 'caixa' só converte para kg se peso_caixa_kg estiver preenchido (CHECK em restricoes.sql).
+CREATE OR REPLACE VIEW vw_lote_classificacao_conferencia AS
+WITH base AS (
+  SELECT l.id_lote,
+         CASE l.unidade
+              WHEN 'kg'    THEN l.quantidade
+              WHEN 't'     THEN l.quantidade * 1000
+              WHEN 'caixa' THEN l.quantidade * l.peso_caixa_kg
+         END AS quantidade_kg_lote,
+         COALESCE(SUM(c.quantidade_kg), 0) AS soma_classificada_kg
+  FROM lote l
+  LEFT JOIN lote_classificacao c ON c.fk_lote_id_lote = l.id_lote
+  GROUP BY l.id_lote
+)
+SELECT id_lote, quantidade_kg_lote, soma_classificada_kg,
+       quantidade_kg_lote - soma_classificada_kg AS diferenca_kg,
+       (soma_classificada_kg > quantidade_kg_lote) AS excede_lote
+FROM base;
