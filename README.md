@@ -178,7 +178,7 @@ A estrutura atual serve como base para essa integração e poderá ser modificad
 
 * PostgreSQL
 * SQL (PL/pgSQL para funções e triggers)
-* ThingSpeak e ESP32/DHT11 (fonte dos dados IoT)
+* ThingSpeak e ESP32/DHT11 e sensor de umidade do solo (fonte dos dados IoT)
 
 ## Contexto
 
