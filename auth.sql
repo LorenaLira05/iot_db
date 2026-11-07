@@ -1,5 +1,6 @@
 -- =====================================================================
 -- Migração de AUTENTICAÇÃO (login, refresh token, 2º fator por e-mail)
+-- Roda depois do schema.sql (depende de usuario e log_acesso).
 -- Pode ser rodada mais de uma vez (idempotente). Não altera nenhuma
 -- tabela existente de dados: só cria duas tabelas, um índice e, se
 -- preciso, alarga uma coluna de log_acesso.
