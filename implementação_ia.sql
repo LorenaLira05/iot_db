@@ -237,7 +237,7 @@ CREATE TABLE parametro_irrigacao (
 -- parecer da IA e gerir o cache por lote
 CREATE TABLE IF NOT EXISTS parecer_ia (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    id_lote INTEGER NOT NULL REFERENCES lote(id) ON DELETE CASCADE,
+    id_lote INTEGER NOT NULL REFERENCES id_lote ON DELETE CASCADE,
     modelo VARCHAR(100) NOT NULL,
     snapshot_entrada JSONB NOT NULL,
     conteudo_json JSONB NOT NULL,
