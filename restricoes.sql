@@ -100,10 +100,6 @@ ALTER TABLE lote_classificacao DROP CONSTRAINT IF EXISTS ck_classificacao_catego
 ALTER TABLE lote_classificacao ADD CONSTRAINT ck_classificacao_categoria
     CHECK (categoria IN ('exportacao','mercado_interno','processamento'));
 
-ALTER TABLE alerta DROP CONSTRAINT IF EXISTS ck_alerta_status;
-ALTER TABLE alerta ADD CONSTRAINT ck_alerta_status
-    CHECK (status IN ('aberto','reconhecido','resolvido'));
-
 /* ===== CHECKs: faixas de valores e coerência ===== */
 ALTER TABLE perda_risco DROP CONSTRAINT IF EXISTS ck_perda_fracao;
 ALTER TABLE perda_risco ADD CONSTRAINT ck_perda_fracao CHECK (fracao_perda BETWEEN 0 AND 1);
@@ -120,12 +116,10 @@ ALTER TABLE leitura_climatica DROP CONSTRAINT IF EXISTS ck_leitura_valores;
 ALTER TABLE leitura_climatica ADD CONSTRAINT ck_leitura_valores CHECK (
         (umidade          IS NULL OR umidade          BETWEEN 0 AND 100)
     AND (umidade_solo     IS NULL OR umidade_solo     BETWEEN 0 AND 100)
-    AND (temperatura      IS NULL OR temperatura      BETWEEN -50 AND 100)
-    AND (temperatura_solo IS NULL OR temperatura_solo BETWEEN -50 AND 100));
+    AND (temperatura      IS NULL OR temperatura      BETWEEN -50 AND 100));
 ALTER TABLE leitura_climatica DROP CONSTRAINT IF EXISTS ck_leitura_alguma_medida;
 ALTER TABLE leitura_climatica ADD CONSTRAINT ck_leitura_alguma_medida CHECK (
-    temperatura IS NOT NULL OR umidade IS NOT NULL
-    OR temperatura_solo IS NOT NULL OR umidade_solo IS NOT NULL);
+    temperatura IS NOT NULL OR umidade IS NOT NULL OR umidade_solo IS NOT NULL);
 
 ALTER TABLE leitura_transporte DROP CONSTRAINT IF EXISTS ck_transporte_umidade;
 ALTER TABLE leitura_transporte ADD CONSTRAINT ck_transporte_umidade
@@ -133,20 +127,14 @@ ALTER TABLE leitura_transporte ADD CONSTRAINT ck_transporte_umidade
 
 ALTER TABLE lote DROP CONSTRAINT IF EXISTS ck_lote_quantidade;
 ALTER TABLE lote ADD CONSTRAINT ck_lote_quantidade CHECK (quantidade >= 0);
--- unidade 'caixa' só é convertível para kg se o peso da caixa for informado
 ALTER TABLE lote DROP CONSTRAINT IF EXISTS ck_lote_peso_caixa;
-ALTER TABLE lote ADD CONSTRAINT ck_lote_peso_caixa
-    CHECK ((unidade <> 'caixa' OR peso_caixa_kg IS NOT NULL) AND (peso_caixa_kg IS NULL OR peso_caixa_kg > 0));
+ALTER TABLE lote ADD CONSTRAINT ck_lote_peso_caixa CHECK (peso_caixa_kg IS NULL OR peso_caixa_kg > 0);
 
 ALTER TABLE lote_classificacao DROP CONSTRAINT IF EXISTS ck_classificacao_qtd;
 ALTER TABLE lote_classificacao ADD CONSTRAINT ck_classificacao_qtd CHECK (quantidade_kg >= 0);
 
 ALTER TABLE dados_mercado DROP CONSTRAINT IF EXISTS ck_mercado_preco;
 ALTER TABLE dados_mercado ADD CONSTRAINT ck_mercado_preco CHECK (preco >= 0);
-
--- probabilidade sempre de 0 a 1
-ALTER TABLE previsao DROP CONSTRAINT IF EXISTS ck_previsao_prob;
-ALTER TABLE previsao ADD CONSTRAINT ck_previsao_prob CHECK (probabilidade BETWEEN 0 AND 1);
 
 -- alerta precisa ter origem: uma leitura (faixa) ou uma previsão
 ALTER TABLE alerta DROP CONSTRAINT IF EXISTS ck_alerta_origem;
