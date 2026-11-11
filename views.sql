@@ -1,17 +1,18 @@
 -- views.sql
 -- Rodar por último (vw_lote_saude usa fn_etapa_lote, criada em triggers.sql).
--- Regra: colunas de ar (temperatura/umidade) vêm só de sensores com ambiente = 'ar';
---        colunas *_solo vêm só dos sensores de solo. Colunas novas ficam no FIM de cada view.
+-- Ar: temperatura/umidade, só de sensores com ambiente = 'ar'.
+-- Solo: umidade_solo (não existe temperatura do solo); trg_leitura_solo move a umidade do sensor de solo para ela.
+-- Colunas novas ficam no FIM de cada view.
 
 -- View para o dashboard: última leitura de cada sensor
 CREATE OR REPLACE VIEW vw_status_sensores AS
 SELECT s.id_sensor, s.nome, s.channel_id, s.status,
        s.fk_lote_id_lote AS id_lote,
        u.data_hora AS ultima_leitura, u.temperatura, u.umidade,
-       s.ambiente, u.temperatura_solo, u.umidade_solo
+       s.ambiente, u.umidade_solo
 FROM sensor s
 LEFT JOIN LATERAL (
-    SELECT l.data_hora, l.temperatura, l.umidade, l.temperatura_solo, l.umidade_solo
+    SELECT l.data_hora, l.temperatura, l.umidade, l.umidade_solo
     FROM leitura_climatica l
     WHERE l.fk_sensor_id_sensor = s.id_sensor
     ORDER BY l.data_hora DESC
@@ -29,10 +30,9 @@ SELECT s.fk_lote_id_lote AS id_lote,
        min(l.umidade)     FILTER (WHERE s.ambiente = 'ar') AS umid_min,
        max(l.umidade)     FILTER (WHERE s.ambiente = 'ar') AS umid_max,
        count(*)           FILTER (WHERE s.ambiente = 'ar') AS qtd_leituras,
-       avg(l.temperatura_solo) AS temp_solo_media,
-       avg(l.umidade_solo)     AS umid_solo_media,
-       min(l.umidade_solo)     AS umid_solo_min,
-       max(l.umidade_solo)     AS umid_solo_max,
+       avg(l.umidade_solo) AS umid_solo_media,
+       min(l.umidade_solo) AS umid_solo_min,
+       max(l.umidade_solo) AS umid_solo_max,
        count(*)           FILTER (WHERE s.ambiente = 'solo') AS qtd_leituras_solo
 FROM leitura_climatica l
 JOIN sensor s ON s.id_sensor = l.fk_sensor_id_sensor
@@ -45,8 +45,7 @@ SELECT fk_sensor_id_sensor,
        ROUND(AVG(temperatura)::numeric, 2) AS temperatura_media,
        ROUND(AVG(umidade), 2)              AS umidade_media,
        COUNT(*)                            AS n_leituras,
-       ROUND(AVG(umidade_solo), 2)              AS umidade_solo_media,
-       ROUND(AVG(temperatura_solo)::numeric, 2) AS temperatura_solo_media
+       ROUND(AVG(umidade_solo), 2)         AS umidade_solo_media
 FROM leitura_climatica
 GROUP BY fk_sensor_id_sensor, date_trunc('hour', data_hora);
 
@@ -99,3 +98,15 @@ SELECT id_lote, quantidade_kg_lote, soma_classificada_kg,
        quantidade_kg_lote - soma_classificada_kg AS diferenca_kg,
        (soma_classificada_kg > quantidade_kg_lote) AS excede_lote
 FROM base;
+
+CREATE OR REPLACE VIEW dado_mercado AS
+SELECT m.id_mercado,
+       m.fk_fruta_id_fruta,
+       CASE lower(m.unidade) WHEN 'kg' THEN m.preco
+                             WHEN 't'  THEN m.preco / 1000 END AS preco_kg,
+       (m.data_refencia::timestamp AT TIME ZONE 'UTC')          AS data_hora,
+       m.moeda
+FROM dados_mercado m
+WHERE m.moeda = 'BRL'
+  AND lower(m.unidade) IN ('kg', 't')
+  AND m.data_refencia IS NOT NULL;
