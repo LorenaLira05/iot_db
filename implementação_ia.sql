@@ -1,7 +1,8 @@
 -- implementação_ia.sql
 -- Camada de IA. Roda depois do schema.sql. Idempotente.
--- Convenções: nível/risco/severidade = enum nivel_alerta ('baixo','médio','alto');
---             probabilidade sempre de 0 a 1; datas em UTC (TIMESTAMP).
+-- Convenções: datas em UTC (TIMESTAMP). Colunas de nível/classificação/status destas tabelas
+-- continuam VARCHAR (o backend grava e compara texto). cortes_alerta_preditivo e
+-- alertas_preditivos ficam no schema.sql.
 -- Histórico de previsões não é apagado junto com o lote (ON DELETE RESTRICT).
 
 /* IA MODELO */
@@ -17,23 +18,9 @@ CREATE TABLE IF NOT EXISTS ia_modelo (
     data_atualizacao TIMESTAMP
 );
 
--- previsao (schema.sql) passa a apontar para o modelo que a gerou (além do texto modelo_utilizado)
+-- previsao (schema.sql) passa a apontar para o modelo que a gerou (além do texto modelo_ultilizado)
 ALTER TABLE previsao ADD COLUMN IF NOT EXISTS fk_modelo_id_modelo INTEGER
     CONSTRAINT fk_previsao_modelo REFERENCES ia_modelo (id_modelo) ON DELETE SET NULL;
-
-/* CORTES DO ALERTA PREDITIVO
-   Nível = o corte de maior limiar_min que a probabilidade alcança.
-   limiar_min é INCLUSIVO e limiar_max é EXCLUSIVO (exceto o último, 1.0), então não há
-   lacuna entre faixas. Probabilidade abaixo do menor limiar_min = sem alerta. */
-CREATE TABLE IF NOT EXISTS cortes_alerta_preditivo (
-    id_corte         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nivel            nivel_alerta  NOT NULL UNIQUE,
-    limiar_min       NUMERIC(5, 4) NOT NULL,
-    limiar_max       NUMERIC(5, 4) NOT NULL,
-    acao_recomendada TEXT          NOT NULL,
-    data_atualizacao TIMESTAMP     NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-    CONSTRAINT ck_corte_limiar CHECK (limiar_min >= 0 AND limiar_max <= 1 AND limiar_min < limiar_max)
-);
 
 /* CHAT CONVERSA */
 CREATE TABLE IF NOT EXISTS chat_conversa (
@@ -84,29 +71,23 @@ CREATE TABLE IF NOT EXISTS previsao_prejuizo (
     CONSTRAINT ck_prejuizo_umidade CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100)
 );
 
-/* ALERTA PREDITIVO (substitui a antiga alertas_preditivos do schema.sql) */
+/* ALERTA PREDITIVO */
 CREATE TABLE IF NOT EXISTS alerta_preditivo (
     id_alerta_preditivo  INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     fk_lote_id_lote      INTEGER NOT NULL,
     fk_modelo_id_modelo  INTEGER NOT NULL,
-    fk_sensor_id_sensor  INTEGER,
     temperatura          DOUBLE PRECISION,
     umidade              NUMERIC(5,2),
-    classificacao        nivel_alerta NOT NULL,
-    probabilidade        NUMERIC(5,4),
+    classificacao        VARCHAR(50) NOT NULL,
+    probabilidade        NUMERIC(5,2),
     motivo               TEXT,
-    previsao_data_hora   TIMESTAMP,       -- instante para o qual o risco foi previsto (UTC)
     data_previsao        TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-    status               VARCHAR(50) NOT NULL DEFAULT 'aberto',
+    status               VARCHAR(50) DEFAULT 'aberto',
     CONSTRAINT fk_alerta_preditivo_lote
         FOREIGN KEY (fk_lote_id_lote) REFERENCES lote (id_lote) ON DELETE RESTRICT,
     CONSTRAINT fk_alerta_preditivo_modelo
         FOREIGN KEY (fk_modelo_id_modelo) REFERENCES ia_modelo (id_modelo) ON DELETE RESTRICT,
-    CONSTRAINT fk_alerta_preditivo_sensor
-        FOREIGN KEY (fk_sensor_id_sensor) REFERENCES sensor (id_sensor) ON DELETE SET NULL,
-    CONSTRAINT ck_alerta_preditivo_prob   CHECK (probabilidade IS NULL OR probabilidade BETWEEN 0 AND 1),
-    CONSTRAINT ck_alerta_preditivo_umid   CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100),
-    CONSTRAINT ck_alerta_preditivo_status CHECK (status IN ('aberto','reconhecido','resolvido'))
+    CONSTRAINT ck_alerta_preditivo_umid CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100)
 );
 
 /* PREVISAO IRRIGAÇÃO (detalhe tipado de previsao.tipo = 'irrigacao') */
@@ -143,8 +124,8 @@ CREATE TABLE IF NOT EXISTS risco_climatico (
     umidade                 NUMERIC(5,2),
     periodo_inicio          DATE,
     periodo_fim             DATE,
-    nivel_risco             nivel_alerta NOT NULL,
-    probabilidade           NUMERIC(5,4),
+    nivel_risco             VARCHAR(50) NOT NULL,
+    probabilidade           NUMERIC(5,2),
     justificativa           TEXT,
     data_previsao           TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
     CONSTRAINT fk_risco_lote
@@ -153,7 +134,6 @@ CREATE TABLE IF NOT EXISTS risco_climatico (
         FOREIGN KEY (fk_modelo_id_modelo) REFERENCES ia_modelo (id_modelo) ON DELETE RESTRICT,
     CONSTRAINT fk_risco_previsao
         FOREIGN KEY (fk_previsao_id_previsao) REFERENCES previsao (id_previsao) ON DELETE SET NULL,
-    CONSTRAINT ck_risco_prob    CHECK (probabilidade IS NULL OR probabilidade BETWEEN 0 AND 1),
     CONSTRAINT ck_risco_periodo CHECK (periodo_fim IS NULL OR periodo_inicio IS NULL OR periodo_fim >= periodo_inicio),
     CONSTRAINT ck_risco_umid    CHECK (umidade IS NULL OR umidade BETWEEN 0 AND 100)
 );
@@ -161,7 +141,7 @@ CREATE TABLE IF NOT EXISTS risco_climatico (
 /* PARAMETRO_PREJUIZO */
 CREATE TABLE IF NOT EXISTS parametro_prejuizo (
     id_parametro INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    nivel_risco  nivel_alerta NOT NULL UNIQUE,
+    nivel_risco  VARCHAR(20) NOT NULL UNIQUE,
     fracao_perda          NUMERIC(5,4) NOT NULL,
     tolerancia_horas      NUMERIC(5,2) NOT NULL,
     acrescimo_hora        NUMERIC(5,4) NOT NULL,
@@ -171,7 +151,8 @@ CREATE TABLE IF NOT EXISTS parametro_prejuizo (
     aprovado              BOOLEAN NOT NULL DEFAULT FALSE,
     data_aprovacao        TIMESTAMP,
     responsavel_aprovacao VARCHAR(150),
-    CONSTRAINT chk_fracao_perda CHECK (fracao_perda BETWEEN 0 AND 1)
+    CONSTRAINT chk_parametro_risco CHECK (nivel_risco IN ('baixo', 'médio', 'alto')),
+    CONSTRAINT chk_fracao_perda    CHECK (fracao_perda BETWEEN 0 AND 1)
 );
 
 /* PARAMETRO_IRRIGACAO */
@@ -213,7 +194,50 @@ CREATE INDEX IF NOT EXISTS idx_parecer_ia_lote_expiracao ON parecer_ia (id_lote,
 CREATE INDEX IF NOT EXISTS idx_chat_conversa_usuario     ON chat_conversa (fk_usuario_id_usuario, data_ultima_mensagem DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_mensagem_conversa    ON chat_mensagem (fk_conversa_id_conversa, data_hora);
 CREATE INDEX IF NOT EXISTS idx_alerta_preditivo_lote     ON alerta_preditivo (fk_lote_id_lote, status, data_previsao DESC);
-CREATE INDEX IF NOT EXISTS idx_alerta_preditivo_sensor   ON alerta_preditivo (fk_sensor_id_sensor);
 CREATE INDEX IF NOT EXISTS idx_prejuizo_lote             ON previsao_prejuizo (fk_lote_id_lote, data_previsao DESC);
 CREATE INDEX IF NOT EXISTS idx_irrigacao_lote            ON previsao_irrigacao (fk_lote_id_lote, data_previsao DESC);
 CREATE INDEX IF NOT EXISTS idx_risco_lote                ON risco_climatico (fk_lote_id_lote, data_previsao DESC);
+
+/* ===== PARECER AGRONÔMICO (rascunho gerado por IA, editado e assinado pelo responsável técnico) =====
+   Usado por src/api/routers/pareceres.py. Depois de assinado, o parecer não pode mais ser alterado. */
+CREATE TABLE IF NOT EXISTS parecer_agronomico (
+    id_parecer          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    fk_lote_id_lote     INTEGER      NOT NULL REFERENCES lote (id_lote) ON DELETE RESTRICT,
+    tipo                VARCHAR(20)  NOT NULL,
+    status              VARCHAR(20)  NOT NULL DEFAULT 'rascunho',
+    texto_gerado        TEXT         NOT NULL,
+    texto_final         TEXT         NOT NULL,
+    dados_entrada       JSONB        NOT NULL,
+    hash_entrada        VARCHAR(64)  NOT NULL,
+    origem_texto        VARCHAR(20)  NOT NULL,
+    provedor_modelo     VARCHAR(100),
+    fk_modelo_id_modelo INTEGER      REFERENCES ia_modelo (id_modelo) ON DELETE RESTRICT,
+    fk_gerado_por       INTEGER      REFERENCES usuario (id_usuario) ON DELETE RESTRICT,
+    gerado_em           TIMESTAMP    NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
+    assinado_em         TIMESTAMP,
+    assinante_nome      VARCHAR(150),
+    crea                VARCHAR(40),
+    fk_assinado_por     INTEGER      REFERENCES usuario (id_usuario) ON DELETE RESTRICT,
+    CONSTRAINT ck_parecer_tipo   CHECK (tipo IN ('agronomico', 'fisiologico')),
+    CONSTRAINT ck_parecer_status CHECK (status IN ('rascunho', 'assinado')),
+    CONSTRAINT ck_parecer_origem CHECK (origem_texto IN ('llm', 'template')),
+    CONSTRAINT ck_parecer_assinatura CHECK (
+        status <> 'assinado'
+        OR (assinado_em IS NOT NULL AND assinante_nome IS NOT NULL AND crea IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS idx_parecer_agro_lote ON parecer_agronomico (fk_lote_id_lote, gerado_em DESC);
+
+CREATE OR REPLACE FUNCTION fn_parecer_travar_assinado()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF OLD.status = 'assinado' THEN
+        RAISE EXCEPTION 'Parecer % já está assinado e não pode ser alterado.', OLD.id_parecer;
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_parecer_travar_assinado ON parecer_agronomico;
+CREATE TRIGGER trg_parecer_travar_assinado
+BEFORE UPDATE ON parecer_agronomico
+FOR EACH ROW EXECUTE FUNCTION fn_parecer_travar_assinado();
