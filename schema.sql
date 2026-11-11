@@ -11,7 +11,7 @@ BEGIN
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'status_sensor') THEN
         CREATE TYPE status_sensor AS ENUM ('ativo', 'inativo');
     END IF;
-    -- nivel_alerta é o ÚNICO domínio de nível/risco/severidade do banco (alertas, previsões, IA)
+    -- nivel_alerta: nível de alerta, de previsão e de perda por risco
     IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'nivel_alerta') THEN
         CREATE TYPE nivel_alerta AS ENUM ('baixo', 'médio', 'alto');
     END IF;
@@ -84,9 +84,9 @@ CREATE TABLE IF NOT EXISTS padrao_qualidade (
 CREATE TABLE IF NOT EXISTS lote (
     id_lote                       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     data_colheita                 DATE,
-    quantidade                    NUMERIC(12,2),
+    quantidade                    INTEGER,
     unidade                       VARCHAR(10) NOT NULL DEFAULT 'kg',
-    peso_caixa_kg                 NUMERIC(6,2),     -- obrigatório quando unidade = 'caixa'
+    peso_caixa_kg                 NUMERIC(6,2),     -- opcional; usado para converter 'caixa' em kg na conferência
     status                        status_lote,
     destino                       VARCHAR(150),
     fk_fruta_id_fruta             INTEGER,
@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS sensor (
     tipo_sensor     VARCHAR(150),
     localizacao     VARCHAR(150),
     channel_id      INTEGER,
-    ambiente        VARCHAR(10) NOT NULL DEFAULT 'ar',   -- 'ar' grava temperatura/umidade; 'solo' grava temperatura_solo/umidade_solo
+    ambiente        VARCHAR(10) NOT NULL DEFAULT 'ar',   -- 'ar' | 'solo': diz o que temperatura/umidade deste sensor medem
     status          status_sensor,
     fk_lote_id_lote INTEGER,
     CONSTRAINT fk_sensor_lote FOREIGN KEY (fk_lote_id_lote)
@@ -126,9 +126,8 @@ CREATE TABLE IF NOT EXISTS sensor (
 CREATE TABLE IF NOT EXISTS leitura_climatica (
     id_leitura          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     temperatura         DOUBLE PRECISION,   -- sensor de ar
-    umidade             NUMERIC(5, 2),      -- sensor de ar
-    umidade_solo        NUMERIC(5, 2),      -- sensor de solo
-    temperatura_solo    DOUBLE PRECISION,   -- sensor de solo
+    umidade             NUMERIC(5, 2),      -- sensor de ar (umidade relativa, %)
+    umidade_solo        NUMERIC(5, 2),      -- sensor de solo (umidade do solo, %). Não existe temperatura do solo.
     data_hora           TIMESTAMP,          -- UTC
     data_recebimento    TIMESTAMP,          -- UTC
     origem              VARCHAR(150),
@@ -173,7 +172,7 @@ CREATE TABLE IF NOT EXISTS dados_mercado (
     unidade            VARCHAR(10) NOT NULL DEFAULT 'kg',
     moeda              CHAR(3)     NOT NULL DEFAULT 'BRL',
     demanda_exportacao NUMERIC(5, 2),
-    data_referencia    DATE,
+    data_refencia      DATE,   -- (sic) nome mantido: o backend usa
     CONSTRAINT fk_dados_mercado_fruta FOREIGN KEY (fk_fruta_id_fruta)
         REFERENCES fruta (id_fruta) ON DELETE CASCADE
 );
@@ -181,16 +180,15 @@ CREATE TABLE IF NOT EXISTS dados_mercado (
 -- Previsão consolidada: 1 linha por previsão gerada, é ela que alimenta alerta, mercado e clima.
 -- As tabelas de implementação_ia.sql (previsao_prejuizo, previsao_irrigacao, risco_climatico)
 -- guardam o detalhe tipado de cada modelo e apontam para cá por fk_previsao_id_previsao.
--- probabilidade sempre na escala 0 a 1.
 CREATE TABLE IF NOT EXISTS previsao (
     id_previsao       INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     fk_lote_id_lote   INTEGER,
     data              DATE,
     inicio            TIME,
     fim               TIME,
-    probabilidade     NUMERIC(5, 4),
+    probabilidade     NUMERIC(5, 2),
     resultado         VARCHAR(150),
-    modelo_utilizado  VARCHAR(150),
+    modelo_ultilizado VARCHAR(150),   -- (sic) nome mantido: o backend usa
     tipo              VARCHAR(20),
     categoria         nivel_alerta,
     valor             NUMERIC(14,2),
@@ -255,6 +253,7 @@ CREATE TABLE IF NOT EXISTS relatorio (
     data_geracao          DATE,
     inicio                DATE,
     fim                   DATE,
+    parametros            JSONB,   -- filtros do relatório (id_lote, agrupamento...), usado por relatorios_gerados.py
     fk_usuario_id_usuario INTEGER,
     CONSTRAINT fk_relatorio_usuario FOREIGN KEY (fk_usuario_id_usuario)
         REFERENCES usuario (id_usuario) ON DELETE RESTRICT
@@ -310,10 +309,38 @@ CREATE TABLE IF NOT EXISTS perda_risco (
     fracao_perda NUMERIC(4,3) NOT NULL
 );
 
+/* ===== ALERTAS PREDITIVOS (usadas pelo backend: nomes, colunas, tipos e valores originais) =====
+   nivel: 'BAIXO' | 'MEDIO' | 'CRITICO'   status: 'EM ABERTO' | 'RECONHECIDO' ...
+   Probabilidade de 0 a 1. A faixa de cada corte é editável pela API (PUT /alertas-preditivos/cortes/{nivel}). */
+CREATE TABLE IF NOT EXISTS cortes_alerta_preditivo (
+    id_corte SERIAL PRIMARY KEY,
+    nivel VARCHAR(20) NOT NULL UNIQUE,
+    limiar_min NUMERIC(3, 2) NOT NULL,
+    limiar_max NUMERIC(3, 2) NOT NULL,
+    acao_recomendada TEXT NOT NULL,
+    data_atualizacao TIMESTAMP DEFAULT (now() AT TIME ZONE 'UTC')
+);
+
+CREATE TABLE IF NOT EXISTS alertas_preditivos (
+    id_alerta_preditivo SERIAL PRIMARY KEY,
+    id_sensor INT,
+    id_lote INT,
+    probabilidade_risco NUMERIC(3, 2) NOT NULL,
+    nivel_severidade VARCHAR(20) NOT NULL,
+    mensagem TEXT NOT NULL,
+    previsao_data_hora TIMESTAMP NOT NULL,
+    status VARCHAR(20) DEFAULT 'EM ABERTO',
+    data_geracao TIMESTAMP DEFAULT (now() AT TIME ZONE 'UTC'),
+    CONSTRAINT fk_alertas_preditivos_sensor FOREIGN KEY (id_sensor)
+        REFERENCES sensor (id_sensor) ON DELETE SET NULL,
+    CONSTRAINT fk_alertas_preditivos_lote FOREIGN KEY (id_lote)
+        REFERENCES lote (id_lote) ON DELETE RESTRICT
+);
+
 /* ===== ATUALIZAÇÃO de bancos locais antigos (no banco novo não faz nada) =====
-   Só cobre colunas novas e renomeações. Mudanças de FK/tipo/PK feitas nesta revisão
-   (ON DELETE RESTRICT, chaves das tabelas de ligação, alertas_preditivos etc.)
-   exigem RECRIAR o banco: não há dados a preservar antes da importação. */
+   Só cobre colunas novas. Mudanças de FK/tipo/PK feitas nesta revisão
+   (ON DELETE RESTRICT, chaves das tabelas de ligação etc.)
+   exigem RECRIAR o banco (inclusive a remoção da coluna temperatura_solo, que não existe mais): não há dados a preservar antes da importação. */
 ALTER TABLE sensor            ADD COLUMN IF NOT EXISTS ambiente VARCHAR(10) NOT NULL DEFAULT 'ar';
 ALTER TABLE config_parametro  ADD COLUMN IF NOT EXISTS etapa    VARCHAR(15) NOT NULL DEFAULT 'armazenamento';
 ALTER TABLE lote
@@ -325,12 +352,12 @@ ALTER TABLE lote
         CONSTRAINT fk_lote_safra       REFERENCES safra (id_safra) ON DELETE RESTRICT,
     ADD COLUMN IF NOT EXISTS fk_propriedade_id_propriedade INTEGER
         CONSTRAINT fk_lote_propriedade REFERENCES propriedade (id_propriedade) ON DELETE RESTRICT;
+ALTER TABLE relatorio         ADD COLUMN IF NOT EXISTS parametros JSONB;
 ALTER TABLE dados_mercado     ADD COLUMN IF NOT EXISTS unidade  VARCHAR(10) NOT NULL DEFAULT 'kg';
 ALTER TABLE dados_mercado     ADD COLUMN IF NOT EXISTS moeda    CHAR(3)     NOT NULL DEFAULT 'BRL';
 ALTER TABLE leitura_climatica
     ADD COLUMN IF NOT EXISTS entry_id_thingspeak INTEGER,
-    ADD COLUMN IF NOT EXISTS umidade_solo        NUMERIC(5,2),
-    ADD COLUMN IF NOT EXISTS temperatura_solo    DOUBLE PRECISION;
+    ADD COLUMN IF NOT EXISTS umidade_solo        NUMERIC(5,2);
 ALTER TABLE previsao
     ADD COLUMN IF NOT EXISTS tipo      VARCHAR(20),
     ADD COLUMN IF NOT EXISTS categoria nivel_alerta,
@@ -342,22 +369,6 @@ ALTER TABLE alerta ADD COLUMN IF NOT EXISTS resolvido_em TIMESTAMP;
 
 DO $$
 BEGIN
-    -- correção de nomes com erro de digitação
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'dados_mercado' AND column_name = 'data_refencia') THEN
-        ALTER TABLE dados_mercado RENAME COLUMN data_refencia TO data_referencia;
-    END IF;
-    IF EXISTS (SELECT 1 FROM information_schema.columns
-               WHERE table_name = 'previsao' AND column_name = 'modelo_ultilizado') THEN
-        ALTER TABLE previsao RENAME COLUMN modelo_ultilizado TO modelo_utilizado;
-    END IF;
-
-    -- lote.quantidade INTEGER -> NUMERIC (unidade 't' admite fração)
-    IF (SELECT data_type FROM information_schema.columns
-        WHERE table_name = 'lote' AND column_name = 'quantidade') = 'integer' THEN
-        ALTER TABLE lote ALTER COLUMN quantidade TYPE NUMERIC(12,2);
-    END IF;
-
     -- alerta.hora (TIME) -> data_hora (TIMESTAMP)
     IF EXISTS (SELECT 1 FROM information_schema.columns
                WHERE table_name = 'alerta' AND column_name = 'hora') THEN
@@ -397,11 +408,14 @@ CREATE INDEX IF NOT EXISTS idx_alerta_data_hora     ON alerta (data_hora);
 CREATE INDEX IF NOT EXISTS idx_alerta_leitura       ON alerta (fk_leitura_id_leitura);
 CREATE INDEX IF NOT EXISTS idx_alerta_previsao      ON alerta (fk_previsao_id_previsao);
 CREATE INDEX IF NOT EXISTS idx_alerta_status_data   ON alerta (status, data_hora DESC);
-CREATE INDEX IF NOT EXISTS idx_dados_mercado_fruta  ON dados_mercado (fk_fruta_id_fruta, data_referencia);
+CREATE INDEX IF NOT EXISTS idx_dados_mercado_fruta  ON dados_mercado (fk_fruta_id_fruta, data_refencia);
 -- logística
 CREATE INDEX IF NOT EXISTS idx_viagem_status ON viagem (status);
 CREATE INDEX IF NOT EXISTS idx_viagem_lote   ON viagem (fk_lote_id_lote);
 CREATE INDEX IF NOT EXISTS idx_viagem_porto  ON viagem (fk_porto_id_porto);
+-- alertas preditivos
+CREATE INDEX IF NOT EXISTS idx_alertas_preditivos_lote   ON alertas_preditivos (id_lote, status, data_geracao DESC);
+CREATE INDEX IF NOT EXISTS idx_alertas_preditivos_sensor ON alertas_preditivos (id_sensor);
 -- acesso
 CREATE INDEX IF NOT EXISTS idx_log_acesso_data ON log_acesso (data_hora);
 CREATE INDEX IF NOT EXISTS idx_usuario_perfil  ON usuario (fk_perfil_id_perfil);
