@@ -59,6 +59,19 @@ BEGIN
     END IF;
 END $$;
 
+-- Tokens de recuperação de senha (só o hash SHA-256 é guardado; o token em si vai só no e-mail)
+CREATE TABLE IF NOT EXISTS senha_reset_token (
+    id_reset              BIGSERIAL PRIMARY KEY,
+    fk_usuario_id_usuario INTEGER     NOT NULL REFERENCES usuario(id_usuario) ON DELETE CASCADE,
+    token_hash            CHAR(64)    NOT NULL UNIQUE,
+    criado_em             TIMESTAMPTZ NOT NULL DEFAULT now(),
+    expira_em             TIMESTAMPTZ NOT NULL,
+    usado_em              TIMESTAMPTZ,
+    ip                    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS ix_senha_reset_usuario ON senha_reset_token (fk_usuario_id_usuario, criado_em DESC);
+
 -- O primeiro Administrador NÃO entra aqui (tem hash de senha). Crie assim:
 --   INSERT INTO usuario (nome, email, senha, status, fk_perfil_id_perfil)
 --   VALUES ('Nome', 'email@real.com', '<hash argon2>', 'ativo',
