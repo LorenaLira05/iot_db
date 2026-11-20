@@ -1,8 +1,11 @@
 -- restricoes.sql
--- Restrições de integridade. Idempotente. Roda depois do schema.sql e do implementação_ia.sql.
--- Se falhar por dados que violam a regra, corrija os dados e rode de novo
--- (a transação desfaz tudo; sem "BEGIN" aberto na sessão, não precisa de ROLLBACK manual).
--- Importe os dados DEPOIS deste script: assim cada linha já é validada na entrada.
+-- Implementação das restrições de integridade, com execução idempotente,
+-- após schema.sql e implementação_ia.sql.
+-- Em caso de falha na aplicação das restrições devido a inconsistências
+-- nos dados existentes, a transação será revertida integralmente, sendo
+-- necessária a correção dos registros antes da reexecução.
+-- A importação dos dados deve ocorrer após a execução deste script,
+-- garantindo a validação das restrições no momento da inserção dos registros.
 
 BEGIN;
 
