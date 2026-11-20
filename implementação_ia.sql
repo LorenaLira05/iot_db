@@ -1,9 +1,16 @@
 -- implementação_ia.sql
--- Camada de IA. Roda depois do schema.sql. Idempotente.
--- Convenções: datas em UTC (TIMESTAMP). Colunas de nível/classificação/status destas tabelas
--- continuam VARCHAR (o backend grava e compara texto). cortes_alerta_preditivo e
--- alertas_preditivos ficam no schema.sql.
--- Histórico de previsões não é apagado junto com o lote (ON DELETE RESTRICT).
+-- Definição das estruturas relacionadas à camada de Inteligência Artificial,
+-- incluindo modelos, conversas, mensagens, previsões, alertas e parâmetros.
+-- Deve ser executado após schema.sql. Possui comandos idempotentes
+-- para criação e atualização das estruturas.
+-- Os campos temporais do tipo TIMESTAMP seguem a convenção de armazenamento
+-- em UTC, enquanto parecer_ia utiliza TIMESTAMPTZ para controle de expiração.
+-- Campos de classificação, nível e status são armazenados como VARCHAR,
+-- com validações específicas implementadas por restrições CHECK quando aplicável.
+-- Os históricos de previsões e alertas possuem restrições de exclusão
+-- que preservam sua associação aos lotes e modelos relacionados.
+-- As tabelas cortes_alerta_preditivo e alertas_preditivos são definidas
+-- em schema.sql.
 
 /* IA MODELO */
 CREATE TABLE IF NOT EXISTS ia_modelo (
