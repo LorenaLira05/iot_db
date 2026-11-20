@@ -1,8 +1,12 @@
 -- views.sql
--- Rodar por último (vw_lote_saude usa fn_etapa_lote, criada em triggers.sql).
--- Ar: temperatura/umidade, só de sensores com ambiente = 'ar'.
--- Solo: umidade_solo (não existe temperatura do solo); trg_leitura_solo move a umidade do sensor de solo para ela.
--- Colunas novas ficam no FIM de cada view.
+-- Definição das views para consulta, agregação e análise dos dados do banco.
+-- Deve ser executado após triggers.sql, devido à dependência da view
+-- vw_lote_saude em relação à função fn_etapa_lote.
+-- Leituras de sensores de ar: temperatura e umidade.
+-- Leituras de sensores de solo: umidade_solo.
+-- As agregações diárias por lote consideram o fuso horário
+-- America/Recife.
+-- Novas colunas devem ser adicionadas ao final da definição de cada view.
 
 -- View para o dashboard: última leitura de cada sensor
 CREATE OR REPLACE VIEW vw_status_sensores AS
