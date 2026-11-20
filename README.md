@@ -191,4 +191,5 @@ A estrutura atual serve como base para essa integração e poderá ser modificad
 
 ## Contexto
 
-Projeto desenvolvido no contexto acadêmico, como parte de uma solução voltada ao monitoramento e análise de dados relacionados à produção agrícola.
+O RAIZ é um projeto desenvolvido no contexto acadêmico, com a proposta de aplicar tecnologia ao monitoramento e à gestão da produção agrícola, utilizando dados climáticos, sensores IoT e análise inteligente de informações para apoiar a tomada de decisões no setor agrícola. A solução surge da necessidade de acompanhar as condições ambientais às quais as culturas estão submetidas durante diferentes etapas da produção, desde o cultivo no campo até o armazenamento e o transporte para exportação. Variações de temperatura e umidade podem comprometer a qualidade dos produtos agrícolas, aumentar perdas e gerar impactos econômicos para produtores e exportadores.
+
