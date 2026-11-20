@@ -1,6 +1,10 @@
 -- schema.sql
--- Convenção de datas: TIMESTAMP em UTC (o front converte para America/Recife).
--- Exceção: auth.sql e parecer_ia usam TIMESTAMPTZ (o backend manipula expiração de token com fuso).
+-- Definição da estrutura do banco de dados, incluindo tipos enumerados,
+-- tabelas, relacionamentos, restrições referenciais e índices.
+-- Os campos temporais do tipo TIMESTAMP seguem a convenção de armazenamento
+-- em UTC, com conversão para America/Recife realizada pela aplicação.
+-- Exceções: auth.sql e parecer_ia utilizam TIMESTAMPTZ para tratamento
+-- de informações temporais com referência explícita ao fuso horário.
 
 /* ===== TIPOS ENUM ===== */
 DO $$
