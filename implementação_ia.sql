@@ -29,32 +29,6 @@ CREATE TABLE IF NOT EXISTS ia_modelo (
 ALTER TABLE previsao ADD COLUMN IF NOT EXISTS fk_modelo_id_modelo INTEGER
     CONSTRAINT fk_previsao_modelo REFERENCES ia_modelo (id_modelo) ON DELETE SET NULL;
 
-/* CHAT CONVERSA */
-CREATE TABLE IF NOT EXISTS chat_conversa (
-    id_conversa           INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    fk_usuario_id_usuario INTEGER NOT NULL,
-    titulo                VARCHAR(150),
-    data_inicio           TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-    data_ultima_mensagem  TIMESTAMP,
-    CONSTRAINT fk_chat_conversa_usuario
-        FOREIGN KEY (fk_usuario_id_usuario)
-        REFERENCES usuario (id_usuario)
-        ON DELETE CASCADE
-);
-
-/* CHAT MENSAGEM */
-CREATE TABLE IF NOT EXISTS chat_mensagem (
-    id_mensagem             INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    fk_conversa_id_conversa INTEGER NOT NULL,
-    tipo                    VARCHAR(20) NOT NULL,
-    mensagem                TEXT NOT NULL,
-    data_hora               TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-    modelo_utilizado        VARCHAR(150),
-    CONSTRAINT fk_chat_mensagem_conversa
-        FOREIGN KEY (fk_conversa_id_conversa)
-        REFERENCES chat_conversa (id_conversa)
-        ON DELETE CASCADE
-);
 
 /* PREVISAO PREJUIZO (detalhe tipado de previsao.tipo = 'prejuizo') */
 CREATE TABLE IF NOT EXISTS previsao_prejuizo (
