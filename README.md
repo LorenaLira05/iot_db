@@ -112,7 +112,7 @@ Rode os arquivos abaixo **nesta ordem**, parando no primeiro erro:
 | `risco_climatico` | Detalhe tipado: nível de risco climático por lote e período, com justificativa. |
 | `alerta_preditivo` | Alertas gerados por modelos de IA (classificação, probabilidade, motivo). |
 | `parametro_prejuizo` / `parametro_irrigacao` | Parâmetros de cálculo por nível de risco / por fruta, com aprovação. |
-| `parecer_ia` | Parecer **automático** da IA por lote, só leitura para o usuário (`GET /ia/parecer`). Funciona como cache: vale 1 h (10 min se a IA falhou e foi usado o texto de reserva); depois de vencido, o servidor gera um novo sozinho. |
+| `parecer_ia` | Parecer **automático** da IA por lote, só leitura para o usuário (`GET /ia/parecer`). Funciona como cache: vale 1 h (10 min se a IA falhou e foi usado o texto de reserva); depois de vencido, o servidor atualiza o parecer automaticamente. |
 | `parecer_agronomico` | Parecer **assinável** (`/pareceres`): rascunho gerado por IA, editado pelo analista e assinado com nome e CREA. Depois de assinado, um trigger impede qualquer alteração. Tipos: `agronomico`, `fisiologico`. |
 
 ### Alertas preditivos (`schema.sql`)
