@@ -296,17 +296,7 @@ CREATE TABLE IF NOT EXISTS viagem (
         REFERENCES porto (id_porto) ON DELETE RESTRICT
 );
 
-CREATE TABLE IF NOT EXISTS leitura_transporte (
-    id_leitura_transporte INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    fk_viagem_id_viagem   INTEGER NOT NULL,
-    data_hora             TIMESTAMP NOT NULL DEFAULT (now() AT TIME ZONE 'UTC'),
-    temperatura_camara    DOUBLE PRECISION,
-    umidade_camara        NUMERIC(5,2),
-    latitude              NUMERIC(9,6),
-    longitude             NUMERIC(9,6),
-    CONSTRAINT fk_leitura_transporte_viagem FOREIGN KEY (fk_viagem_id_viagem)
-        REFERENCES viagem (id_viagem) ON DELETE CASCADE
-);
+
 
 CREATE TABLE IF NOT EXISTS perda_risco (
     categoria    nivel_alerta PRIMARY KEY,
