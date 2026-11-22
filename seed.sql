@@ -4,7 +4,7 @@
 -- Realiza a inserção de dados ausentes e a atualização dos parâmetros
 -- de configuração definidos em config_parametro.
 -- Ordem de execução: schema -> restricoes -> seed -> triggers -> views.
--- Os valores da seção CONFIG devem ser revisados e ajustados previamente
+-- Os valores da seção CONFIG devem ser revisados e ajustados previamente,
 -- à execução do script.
 
 DO $$
