@@ -70,9 +70,27 @@ CREATE TABLE IF NOT EXISTS senha_reset_token (
     ip                    TEXT
 );
 
+-- Dono dos dispositivos e lotes (base da proteção contra IDOR).
+-- Rodar uma vez em cada banco.
+ALTER TABLE lote ADD COLUMN IF NOT EXISTS fk_usuario_id_usuario INTEGER REFERENCES usuario(id_usuario);
+ALTER TABLE sensor ADD COLUMN IF NOT EXISTS fk_usuario_id_usuario INTEGER REFERENCES usuario(id_usuario);
+CREATE INDEX IF NOT EXISTS idx_lote_dono ON lote(fk_usuario_id_usuario);
+CREATE INDEX IF NOT EXISTS idx_sensor_dono ON sensor(fk_usuario_id_usuario);
+
+-- Backfill: ajuste o id do Produtor/Exportador que será dono dos dados existentes.
+-- UPDATE lote   SET fk_usuario_id_usuario = <ID_DO_PRODUTOR> WHERE fk_usuario_id_usuario IS NULL;
+-- Sensores com lote herdam o dono do lote; sensores sem lote precisam de dono explícito:
+UPDATE sensor s
+   SET fk_usuario_id_usuario = l.fk_usuario_id_usuario
+  FROM lote l
+ WHERE l.id_lote = s.fk_lote_id_lote AND s.fk_usuario_id_usuario IS NULL;
+-- UPDATE sensor SET fk_usuario_id_usuario = <ID_DO_PRODUTOR> WHERE fk_usuario_id_usuario IS NULL;
+
+
 CREATE INDEX IF NOT EXISTS ix_senha_reset_usuario ON senha_reset_token (fk_usuario_id_usuario, criado_em DESC);
 
 -- O primeiro Administrador NÃO entra aqui (tem hash de senha). Crie assim:
 --   INSERT INTO usuario (nome, email, senha, status, fk_perfil_id_perfil)
 --   VALUES ('Nome', 'email@real.com', '<hash argon2>', 'ativo',
 --           (SELECT id_perfil FROM perfil WHERE nome = 'Administrador'));
+
