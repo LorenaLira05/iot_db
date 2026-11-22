@@ -381,6 +381,9 @@ BEGIN
     END IF;
 END $$;
 
+ALTER TABLE leitura_climatica ADD COLUMN IF NOT EXISTS umidade_solo     numeric(5,2);
+ALTER TABLE leitura_climatica ADD COLUMN IF NOT EXISTS temperatura_solo numeric(5,2);
+
 /* ===== ÍNDICES (depois da atualização, pois dependem de colunas novas) ===== */
 -- leituras
 CREATE INDEX IF NOT EXISTS idx_leitura_sensor_data ON leitura_climatica (fk_sensor_id_sensor, data_hora);
